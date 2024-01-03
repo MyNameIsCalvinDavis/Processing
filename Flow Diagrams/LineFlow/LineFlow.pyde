@@ -3,7 +3,7 @@ import math
 
 HEIGHT = 500
 WIDTH = 500
-smooth_slider = Slider(1, 50, 50, 200)
+smooth_slider = Slider(1, 100, 50, 200)
 amp_slider = Slider(0.1, 8, 1, 200)
 
 # https://math.stackexchange.com/questions/1832177/sigmoid-function-with-fixed-bounds-and-variable-steepness-partially-solved
@@ -26,7 +26,7 @@ def setup():
 
 x = 50
 y = 200
-step = 2
+step = 10
 points = []
 def draw():
     global x
@@ -45,18 +45,18 @@ def draw():
     
     # Calculate next point on the line
     n = noise(x / smoothness, y / smoothness) 
-    n = map(n, 0, 1, -amp, amp)
+    n = map(n, 0, 1, -1, 1)
     
     stroke(0)
-    x = x + cos(n) * step
-    y = y + sin(n) * step
+    x = x + cos(n * amp) * step
+    y = y + sin(n * amp) * step
     
     if x > WIDTH or x < 0:
         x = 10
         points = []
     if y > HEIGHT or y < 2:
         y = HEIGHT / 2
-    #draw_field(smoothness, amp, 20)
+    draw_field(smoothness, amp, 20)
         
             
             
