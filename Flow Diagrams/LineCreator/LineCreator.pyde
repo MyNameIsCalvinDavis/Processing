@@ -9,21 +9,21 @@ HEIGHT = 600
 WIDTH = 600
 smooth_slider = Slider(1, 200, 200, 200)
 amp_slider = Slider(-10, 10, 2, 200)
-length_slider = Slider(1, 30, 10, 200)
-step = 8
+sep_slider = Slider(1, 30, 10, 200)
+step = 10
 prev_points = []
 #grid_points = [(x, y) for y in range(0, HEIGHT, pt_step) for x in range(0, WIDTH, pt_step)]
 sq_pts = [(x, y) for x in range(WIDTH/3, 2*WIDTH/3, 10) for y in range(HEIGHT/3, 2*HEIGHT/3, 10)]
 
 d_sep = 16 # Must be greater than step
 d_test = d_sep/2
-grid = Grid(WIDTH, HEIGHT, d_sep)
+grid = Grid(WIDTH, HEIGHT, int(d_sep * 1.5))
 
 def setup():
     size(WIDTH, HEIGHT + 100)
     smooth_slider.position(10, HEIGHT + 30)
     amp_slider.position(250, HEIGHT + 30)
-    length_slider.position(10, 580)
+    sep_slider.position(10, HEIGHT + 60)
     noiseSeed(123)
 
 def draw_line(ln):
@@ -33,69 +33,53 @@ def draw_line(ln):
         
 def draw_circles(ln, r=15):
     for p in range(len(ln)-1):
-        stroke(0)
-        noFill()
+        fill(255)
+        #noFill()
         circle(ln[p][0], ln[p][1], r)
 
 def generate_line(pt, smoothness, amp):
     # Generating a single streamline just involves following whatever flow field
     # We're currently using and evaluating points on either end of the line
-    x,y = pt
-    bl = []
-    ln = []
+    px,py = pt
+    nx,ny = pt
     
-    # Positive direction
-    #print("Pos direction")
-    while x < WIDTH and x > 0 and y < HEIGHT and y > 0 and len(ln) < 100:
-        n = noise(x / smoothness, y / smoothness) * amp # In this case perlin noise
-        n = map(n, 0, 1, -1, 1)
-    
-        t = (x, y, n)
-        ln.append(t)
-        grid.add_to_cell(t)
+    streamline = []
+    while True:
+        if px < WIDTH and px > 0 and py < HEIGHT and py > 0 and len(streamline) < 100:
+            n = noise(px / smoothness, py / smoothness) * amp # In this case perlin noise
+            n = map(n, 0, 1, -1, 1)
+            t = (px, py, n)
+            streamline.append(t) # Add to end of list
+            grid.add_to_cell(t)
+            
+            px = px + cos(n) * step
+            py = py + sin(n) * step
+            #pts = grid.get_neighbor_cell_points((px, py))
+            ID = grid.find_cell_ID((px, py))
+            pts = grid.get_cell(ID)
 
-        x = x + cos(n) * step
-        y = y + sin(n) * step
-        t = (x, y, n)
-        # During construction, a new sample point is only valid if it is at a separating
-        # distance greater than d_sep. If it's not the case, this direction is stopped.
+            # Does our new point overlap with any of the neighboring points?
+            if overlap_check((px,py), pts, streamline):
+                # Stop adding points in this direction
+                px = WIDTH + 1
+        elif nx < WIDTH and nx > 0 and ny < HEIGHT and ny > 0 and len(streamline) < 100:
+            n = noise(nx / smoothness, ny / smoothness) * amp # In this case perlin noise
+            n = map(n, 0, 1, -1, 1)
+            t = (nx, ny, n)
+            streamline.insert(0, t) # Add to end of list
+            grid.add_to_cell(t)
+            
+            nx = nx - cos(n) * step
+            ny = ny - sin(n) * step
+            #pts = grid.get_neighbor_cell_points((nx, ny))
+            ID = grid.find_cell_ID((nx, ny))
+            pts = grid.get_cell(ID)
 
-        # A new sample point is valid if the distance between it and all sampled points
-        # in a local area are greater than d_sep
-
-        # Get points in local area
-        pts = grid.get_neighbor_cell_points((x, y))
-
-        # Does our new point overlap with any of the neighboring points?
-        if overlap_check((x,y), pts, ln):
-            bl += ln
-            break
-            #return ln
-        # If not, calculate next point
-    
-    # Neg direction
-    if not bl: bl += ln
-    x,y = pt
-    ln = []
-    while x < WIDTH and x > 0 and y < HEIGHT and y > 0 and len(ln) < 150:
-        n = noise(x / smoothness, y / smoothness) * amp # In this case perlin noise
-        n = map(n, 0, 1, -1, 1)
-    
-
-        t = (x, y, n)
-        ln.insert(0, t)
-        grid.add_to_cell(t)
-
-        x = x - cos(n) * step
-        y = y - sin(n) * step
-        pts = grid.get_neighbor_cell_points((x, y))
-
-        if overlap_check((x,y), pts, bl + ln):
-            bl = ln + bl
-            break
-    else:
-        bl = ln + bl
-    return bl
+            if overlap_check((nx,ny), pts, streamline):
+                # Stop adding points in this direction
+                nx = WIDTH + 1
+        else:
+            return streamline
 
 def find_candidate_seed(streamline):
     # Given a point on a streamline we can calculate two points
@@ -119,7 +103,6 @@ def find_candidate_seed(streamline):
         if not overlap_check(p2, neighbors) and px < WIDTH and px > 0 and py < HEIGHT and py > 0:
             return p2
         
-
 def distance(p1, p2):
     x1,y1 = p1[0], p1[1]
     x2,y2 = p2[0], p2[1]
@@ -129,7 +112,7 @@ def overlap_check(p1, points, exclude=[]):
     for p in points:
         if p in exclude:
             continue
-        if exclude and p != exclude[0]:
+        if exclude and p != exclude[0]: # If its not the first point, use a different spacing metric
             if distance(p, p1) < d_test:
                 return True
         else:
@@ -137,44 +120,30 @@ def overlap_check(p1, points, exclude=[]):
                 return True
     return False
 
-
 streamlines = []
 def draw():
     global streamlines
+    global d_sep
     grid.reset()
-    background(255)
+    background(150)
     
     smoothness = smooth_slider.value()
     amp = amp_slider.value()
-    l = length_slider.value()
+    d_sep = sep_slider.value()
+    #d_test = d_sep / 2
     # smoothness = 200.0
     # amp = 4.0
     # l = 40.0
-    #circle(200, 200, 5)
     
     # Derive all the seed points possible from an existing streamline before
     # trying with a different existing one
 
     # Compute an initial streamline and put it into the queue
 
-    
-    # pt = find_candidate_seed(initial_streamline)
-    # #circle(pt[0], pt[1], 10)
-    # l2 = generate_line(pt, smoothness, amp)
-    # draw_line(l2)
-    
-    # # for i in range(5):
-    # pt = find_candidate_seed(l2)
-    # #circle(pt[0], pt[1], 5)
-    # l2 = generate_line(pt, smoothness, amp)
-    # draw_line(l2)
     # Figure 3 page 6
-    
-    # noFill()
-    
     initial_streamline = generate_line((200, 200), smoothness, amp)
     streamlines.append(initial_streamline)
-    draw_line(initial_streamline)
+    draw_circles(initial_streamline, step)
     
     finished = False
     current_streamline = streamlines.pop(0) # Queue
@@ -185,7 +154,7 @@ def draw():
         if c_seed: # If valid candidate selected, compute new SL and add to queue
             new_sl = generate_line(c_seed, smoothness, amp)
             streamlines.append(new_sl)
-            draw_line(new_sl)
+            draw_circles(new_sl, step)
         else: # No more valid candidates on current streamline
             if not streamlines: # No more streamlines in queue
                 finished = True
