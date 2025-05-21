@@ -2,9 +2,10 @@ from pprint import pprint
 import operator
 import time
 import random
+import numpy as np
 
-WIDTH = 3;
-HEIGHT = 3;
+WIDTH = 5;
+HEIGHT = 5;
 
 OUTW = 10
 OUTH = 10
@@ -27,9 +28,10 @@ def setup():
     #size(WIDTH,HEIGHT)
     img = load_image("patterns/Pattern5.png")
     genRules()
+    pprint(list(PATTERNS))
     initGrid()
+    pprint(STATE_GRID)
     
-
 def draw():
     #image(img, 0, 0)
     time.sleep(0.1)
@@ -44,17 +46,27 @@ def draw():
             x = col * square_size
             y = row * square_size
             
+            #print("Draw:", STATE_GRID[row][col].pos, STATE_GRID[row][col].domain), 
             val = 100 if len(STATE_GRID[row][col].domain) > 1 else STATE_GRID[row][col].value
-            fill(val)
+            try: fill(val)
+            except: fill(100)
             rect(x,y,square_size,square_size)
             fill(255)
             text(len(STATE_GRID[row][col].domain),x+10,y+10)
     
     #pprint(STATE_GRID)
-    next_cell = pickLowestEntropyCell()
-    #print("\n===lowest entropy cell:", next_cell.pos, next_cell.se)
-    observe(next_cell)
     
+    next_cell = pickLowestEntropyCell()
+    print("Next Cell:", next_cell.pos)
+    
+    #print("Collapsing lowest cell", next_cell.pos)
+    collapse(next_cell.pos[0], next_cell.pos[1])
+    print(next_cell.pos, "=", next_cell.value)
+    
+    # print("\n===lowest entropy cell:", next_cell.pos, next_cell.se)
+    #observe(next_cell)
+    
+    #print("Updating adjacent cells to", next_cell.pos)
     updateAdjacentCellDomains(next_cell.pos[0], next_cell.pos[1], [next_cell])
     #pprint(STATE_GRID)
     
@@ -63,10 +75,12 @@ def draw():
     one_d_list = sum(STATE_GRID, [])
     for x in one_d_list:
         if len(x.domain) == 1:
-            collapse(x.pos[0], x.pos[1])
+            #collapse(x.pos[0], x.pos[1])
+            x.value = list(x.domain)[0]
     
     #exit_sketch()
 
+'''
 def observe(cell):
     #print("OBSERVING CELL:", cell.pos, len(cell.domain))
     #print("Current domain:", cell.domain)
@@ -77,6 +91,7 @@ def observe(cell):
     #print("new cell domain:", cell.domain, len(cell.domain))
     #print(cell.domain)
     collapse(cell.pos[0], cell.pos[1])
+'''
 
 def genRules():
     global img
@@ -131,15 +146,32 @@ def pickLowestEntropyCell():
 def collapse(x, y):
     #print("Collapsing cell", x, y)
     cell = STATE_GRID[y][x]
+    
+    # Pick a cell from a domain, weighted
+    # {'#FFFFFFFF': 0.8125, '#03FF00FF': 0.0625, '#001CFFFF': 0.0625, '#FF0000FF': 0.0625}
+    weights = []
+    domain = list(cell.domain) # sets are unordered
+    for col in domain:
+        weights.append(WEIGHTS[col])
+
+    domain = set(random.choices(domain, weights=weights))
+    #print(domain)
+    cell.domain = domain
+    cell.se = shannonEntropy(cell.domain)
+    COLLAPSED.append(cell.pos)
+    #print("final collapsed cell:", cell.pos, cell.domain, cell.se)
+    if len(cell.domain) == 0: raise
+    
+    
     #print("Cell", cell.pos, "domains:", len(cell.domain))
-    if len(cell.domain) == 1:
-        cell.value = list(cell.domain)[0]
-        cell.domain = {}
-        cell.se = shannonEntropy(cell.domain)
+    #if len(cell.domain) == 1:
+    #    cell.value = list(cell.domain)[0]
+    #    cell.domain = {}
+    #    cell.se = shannonEntropy(cell.domain)
     #print("Final collapsed cell", cell.pos)
     #print(cell.value, cell.domain, cell.se)
     #pprint(STATE_GRID)
-    COLLAPSED.append(cell.pos)
+    #COLLAPSED.append(cell.pos)
 
 def updateAdjacentCellDomains(x, y, already_updated=[], cell_queue=[]):
     mycell = STATE_GRID[y][x]
@@ -154,18 +186,68 @@ def updateAdjacentCellDomains(x, y, already_updated=[], cell_queue=[]):
             continue
         else:
             nbs.append((nb_c, d))
-            
-        #print(x + d[0],y + d[1])
-    #print("Main cell:", x, y, "== neighbors:", len(nbs))
+
+    #print("\nMain cell:", x, y, "== neighbors:", len(nbs), mycell.domain)
     
     # Find my possible cell types
+    
+    # N E S W
+    for nb, d in nbs:
+        # Where d is the direction from the original tile to the neighbor
+        
+        
+        # Go through my colors, m_color
+            # What in my neighbors domain conforms to m_color?
+                # Can black be to the left of m_color?
+                # Can red be to the left of m_color?
+                # Can blue be to the left of m_color?
+                    # If no, remove that item from the domain
+        #print("#########\n-- NB cell:", nb.pos, nb.domain, len(nb.domain))
+        old_domain = len(nb.domain)
+        for m_color in mycell.domain:
+            #print("====Main cell color check", mycell.pos, ":", m_color)
+            invalid_domains = []
+            for n_color in nb.domain:
+                #print("====NB cell color check", nb.pos, ":", n_color)
+                # Original perspectvie: Can n_color be d      from m_color? 
+                pattern = (m_color, n_color, dirToString(getOppositeDir(d)))
+                #print("Is this pattern in PATTERNS_DICT?", pattern)
+                # if no pattern is found that matches (mcolor, ncolor, d)
+                if pattern not in PATTERNS_DICT:
+                    # remove n_color from nb domain
+                    #nb.domain.remove(n_color)
+                    #print("Not in there, remove", n_color, "from", nb.pos, "domain")
+                    invalid_domains.append(n_color)
+                else:
+                    pass
+                    #print("------------It's in there!!!!")
+        for invalid in invalid_domains: nb.domain.remove(invalid)
+        nb.se = shannonEntropy(nb.domain)
+        
+        new_domain = len(nb.domain)
+        
+        if new_domain != old_domain:
+            #print("Old / new domain not same for", nb.pos, old_domain, new_domain)
+            #print("Add", nb.pos, "to end of cell queue")
+            cell_queue.append(nb)
+        else:
+            pass
+            #print("OLD/NEW domain is same, skip", nb.pos)
+    
+    try:
+        front = cell_queue.pop(0)
+        updateAdjacentCellDomains(front.pos[0], front.pos[1], already_updated, cell_queue)
+    except:
+        return
+                
+                
+    '''
     possible_cell_types = mycell.domain
     if len(possible_cell_types) == 0: #raise("Possible cell types is 0, I should already be collapsed with 0 domain & not an option")
         possible_cell_types = [mycell.value]
 
     
     for nb, d in nbs:
-        # Where d is the direction from the original tile to the neighbor
         #print("\nMain Cel:", mycell.pos, "== possible cell types:", possible_cell_types)
         #print("Neig Cel:", nb.pos)
         #print("--", nb.domain)
@@ -218,7 +300,7 @@ def updateAdjacentCellDomains(x, y, already_updated=[], cell_queue=[]):
             #print("Returning from cell, original:", mycell.pos, "nb:", nb.pos)
             return
         
-        '''
+        ####################
         valid = []
         #print("Checking patterns of nb")
         for nb_pattern in nb.domain:
@@ -255,8 +337,8 @@ def initGrid():
     global STATE_GRID
     global PATTERNS_DICT
     
-    domain = set([x[0] for x in PATTERNS_DICT.keys()])
-    STATE_GRID = [[Cell(domain, (x,y)) for x in range(OUTW)] for y in range(OUTH)]
+    #domain = set([x[0] for x in PATTERNS_DICT.keys()])
+    STATE_GRID = [[Cell(set([x[0] for x in PATTERNS_DICT.keys()]), (x,y)) for x in range(OUTW)] for y in range(OUTH)]
 
 def getIndex(x, y):
     return x + y * WIDTH
