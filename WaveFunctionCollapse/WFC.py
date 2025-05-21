@@ -1,4 +1,6 @@
 from pprint import pprint
+import operator
+import time
 import random
 
 WIDTH = 3;
@@ -16,24 +18,65 @@ PATTERNS_DICT = {}
 PATTERNS = set()
 WEIGHTS = {}
 
+COLLAPSED = []
 
 def setup():
     global img
-    size(WIDTH,HEIGHT)
-    img = load_image("patterns/Pattern2.png")
+    global LAST_CELL
+    size(OUTW*20,OUTH*20)
+    #size(WIDTH,HEIGHT)
+    img = load_image("patterns/Pattern5.png")
     genRules()
     initGrid()
     
-    # Manually collapse one cell
-    STATE_GRID[0][0].value = '-0x222223'
-    STATE_GRID[0][0].domain = {('-0x222223', '-0x222223', 'W')} # Some random domain item
-    updateAdjacentCellDomains(0, 0)
-    
-    pprint(STATE_GRID)
 
 def draw():
-    image(img, 0, 0)
-    exit_sketch()
+    #image(img, 0, 0)
+    time.sleep(0.1)
+    background(255)
+    num_rows = OUTW
+    num_cols = OUTH
+    
+    square_size = 20
+    
+    for row in range(num_rows):
+        for col in range(num_cols):
+            x = col * square_size
+            y = row * square_size
+            
+            val = 100 if len(STATE_GRID[row][col].domain) > 1 else STATE_GRID[row][col].value
+            fill(val)
+            rect(x,y,square_size,square_size)
+            fill(255)
+            text(len(STATE_GRID[row][col].domain),x+10,y+10)
+    
+    #pprint(STATE_GRID)
+    next_cell = pickLowestEntropyCell()
+    #print("\n===lowest entropy cell:", next_cell.pos, next_cell.se)
+    observe(next_cell)
+    
+    updateAdjacentCellDomains(next_cell.pos[0], next_cell.pos[1], [next_cell])
+    #pprint(STATE_GRID)
+    
+    #print("Finding 1 domain cells")
+    # Find 1-domain cells
+    one_d_list = sum(STATE_GRID, [])
+    for x in one_d_list:
+        if len(x.domain) == 1:
+            collapse(x.pos[0], x.pos[1])
+    
+    #exit_sketch()
+
+def observe(cell):
+    #print("OBSERVING CELL:", cell.pos, len(cell.domain))
+    #print("Current domain:", cell.domain)
+    r = random.choice(list(cell.domain))
+    #print("Randomly choose:", r)
+    cell.domain = set()
+    cell.domain.add(r)
+    #print("new cell domain:", cell.domain, len(cell.domain))
+    #print(cell.domain)
+    collapse(cell.pos[0], cell.pos[1])
 
 def genRules():
     global img
@@ -45,11 +88,12 @@ def genRules():
     weights = {}
     
     # Make Patterns
+    color_mode(RGB)
     for y in range(HEIGHT):
         for x in range(WIDTH):
             loc = getIndex(x, y)
-            c = hex(img.pixels[loc])
-            
+            c = hex_color(img.pixels[loc])
+
             if c in numberOf: numberOf[c] += 1
             else: numberOf[c] = 1
             
@@ -63,23 +107,42 @@ def genRules():
                 dir_loc = getIndex(x + d[0], y + d[1])
                 if (dir_loc < 0 or dir_loc >= WIDTH * HEIGHT or (x + d[0]) >= WIDTH or (x + d[0]) < 0 or (y + d[1]) >= HEIGHT or (y + d[1]) < 0):
                     continue
-                # print(x, y, c, "===", x + d[0], y + d[1])
-                checked_dir = hex(img.pixels[dir_loc])
+                # #print(x, y, c, "===", x + d[0], y + d[1])
+                checked_dir = hex_color(img.pixels[dir_loc])
                 pattern = (c, checked_dir, dirToString(getOppositeDir(d)))
-                # print(pattern)
+                # #print(pattern)
                 if pattern in PATTERNS_DICT: PATTERNS_DICT[pattern] += 1
                 else: PATTERNS_DICT[pattern] = 1
                 
                 PATTERNS.add(pattern)
-    pprint(PATTERNS_DICT)
+    #pprint(PATTERNS_DICT)
     
     # Weight calc
     for k,v in weights.items():
         WEIGHTS[k] = v / (WIDTH * HEIGHT)
 
-def updateAdjacentCellDomains(x, y, already_updated=[]):
+def pickLowestEntropyCell():
+    one_d_list = sum(STATE_GRID, [])
+    sorted_x = sorted(one_d_list, key=operator.attrgetter('se'))
+    for x in sorted_x:
+        if x.se != 0 and x.pos not in COLLAPSED:
+            return x
+
+def collapse(x, y):
+    #print("Collapsing cell", x, y)
+    cell = STATE_GRID[y][x]
+    #print("Cell", cell.pos, "domains:", len(cell.domain))
+    if len(cell.domain) == 1:
+        cell.value = list(cell.domain)[0]
+        cell.domain = {}
+        cell.se = shannonEntropy(cell.domain)
+    #print("Final collapsed cell", cell.pos)
+    #print(cell.value, cell.domain, cell.se)
+    #pprint(STATE_GRID)
+    COLLAPSED.append(cell.pos)
+
+def updateAdjacentCellDomains(x, y, already_updated=[], cell_queue=[]):
     mycell = STATE_GRID[y][x]
-    
     # Get neighbors of this cell
     nbs = []
     for d in (NORTH, EAST, SOUTH, WEST):
@@ -93,79 +156,107 @@ def updateAdjacentCellDomains(x, y, already_updated=[]):
             nbs.append((nb_c, d))
             
         #print(x + d[0],y + d[1])
-    
-    print("Main cell:", x, y, "== neighbors:", len(nbs))
+    #print("Main cell:", x, y, "== neighbors:", len(nbs))
     
     # Find my possible cell types
-    possible_cell_types = set([x[0] for x in mycell.domain])
-    if len(possible_cell_types) == 0: raise("Possible cell types is 0, I should already be collapsed with 0 domain & not an option")
+    possible_cell_types = mycell.domain
+    if len(possible_cell_types) == 0: #raise("Possible cell types is 0, I should already be collapsed with 0 domain & not an option")
+        possible_cell_types = [mycell.value]
 
     
     for nb, d in nbs:
         # Where d is the direction from the original tile to the neighbor
+        #print("\nMain Cel:", mycell.pos, "== possible cell types:", possible_cell_types)
+        #print("Neig Cel:", nb.pos)
+        #print("--", nb.domain)
+        # valid patterns
+        # For every color represented in the original domain,
+            # For every color in my (nb) domain,
+                # Flip the direction to neighbor > original (it starts as original > neighbor)
+                # Create the following pattern X: (nb_color , orig_colr , flip_direction)
+                # If X is in my global patterns,
+                    # add X to valid patterns
         
-        # Pick a neighbor not in already_updated
-        if nb in already_updated: continue
+        # new_domain = [x[0] for x in valid_patterns]
         
-        # Do the complicated calc on that neighbor with rules
-        filters = []
+        valid_patterns = []
+        #print("Finding valid patterns for cell")
+        for o_color in possible_cell_types:
+            #print("Check original cell color:", o_color)
+            for n_color in nb.domain:
+                #print("Check neighbor cell color:", n_color)
+                new_dir = dirToString(getOppositeDir(d))
+                X = (n_color, o_color, new_dir)
+                #print("Find this pattern: ", X)
+                if X in PATTERNS_DICT:
+                    #print("Found")
+                    valid_patterns.append(X)
         
-        # As a neighbor, either i'm collapsed or I'm not
-        # If I'm not, I have multiple possibilities in the form of
-        # (Me, originalTile, directionFromOriginalToMe)
-        # Where the sum of "Me"s is all possible tiles I may assume
-        nb_possible_cell_types = set([x[0] for x in nb.domain])
-        
-        # If I am collapsed, I don't need to be checked anyway and I must have been missed somehow
-        # in whatever calculation collapses cells... I should alert to that
-        # I should already be part of the already_updated list. Why am I not?
-        if len(nb_possible_cell_types) == 0: raise("Ruh roh raggy - possible cell types is 0 for this neighbor because I'm already collapsed")
-        
-        print("Main Cel:", mycell.pos, "== possible cell types:", possible_cell_types)
-        print("Neighbor:", nb.pos, "== possible cell types:", nb_possible_cell_types)
+        new_domain = set([x[0] for x in valid_patterns])
+        old_domain = nb.domain
+        #print("New / old domain:", new_domain, old_domain)
         
         
-        # Generate a filter (A, B, X)
-        # Find directionFromOriginalToMe, dir
-        # Find directionFromMeToOriginal, opposite(dir)
-        # Find color(s) of original tile, orig
-        # Find my (nb) color, nbc
-        
-        # Loop through original's possible colors:
-            # Find all patterns in original's domain that conform to: (orig, _, opposite(dir))
-            # Find all patterns in neighbor's domain that conform to: (_   , orig, dir)
-            # Maintain two lists
-        
-        filter1 = []
-        filter2 = []
-        for orig in possible_cell_types:
-            print("Evaluating orig:", orig)
-            for pattern in mycell.domain:
-                print(pattern[0], "==", orig, pattern[0] == orig, "\t", pattern[2], "==", dirToString(getOppositeDir(d)), pattern[2] == dirToString(getOppositeDir(d))) 
-                if pattern[0] == orig and pattern[2] == dirToString(getOppositeDir(d)):
-                    filter1.append(pattern)
-            for pattern in nb.domain:
-                print(pattern[1], "==", orig, pattern[1] == orig, "\t", pattern[2], "==", dirToString(d), pattern[2] == dirToString(d)) 
-                if pattern[1] == orig and pattern[2] == dirToString(d):
-                    filter2.append(pattern)
-        print(filter1, filter2)
-        break
-        
-        # Union the two, set neighbor domain equal to the result
-        
-        # If I am collapsed, use my value to decide what my neighbors are
-        # If I am not collapsed, take all the 
-            # Because I'm this, you can no longer be that
-            # Recalc entropy
-        # Add that neighbor to the already_updated list
-        # If that neighbors domain changes, recurse
         already_updated.append(nb)
+        
+        if new_domain != old_domain:
+            #print("Domain not the same, add", nb.pos, "to cell queue")
+            nb.domain = new_domain
+            cell_queue.append(nb)
+        else:
+            #print("Domain is the same between", mycell.pos, nb.pos)
+            pass
+        try:
+            #pprint(STATE_GRID)
+            
+            front = cell_queue.pop(0)
+            #print("Pop front of queue, eval:", front.pos)
+            #print("Recurse on front", front.pos)
+            updateAdjacentCellDomains(front.pos[0], front.pos[1], already_updated, cell_queue)
+        except Exception as e:
+            #print("--", e)
+            #print("Returning from cell, original:", mycell.pos, "nb:", nb.pos)
+            return
+        
+        '''
+        valid = []
+        #print("Checking patterns of nb")
+        for nb_pattern in nb.domain:
+            if (nb_pattern[1] in possible_cell_types) and (nb_pattern[2] == dirToString(getOppositeDir(d))):
+                valid.append(nb_pattern)
+        
+        
+        old_length = len(nb.domain)
+        new_length = len(valid)
+        #print("Old / new", old_length, new_length)
+        
+        nb.domain = valid
+        already_updated.append(nb)
+        
+        if old_length != new_length:
+            #print("Add", nb.pos, "to cell queue")
+            # Add this neighbor to cell queue
+            cell_queue.append(nb)
+        
+    try:
+        #pprint(STATE_GRID)
+        #print("Pop front of queue")
+        front = cell_queue.pop(0)
+        #print("Front of cell queue:", front.pos)
+        #print("Recurse on front", front.pos)
+        updateAdjacentCellDomains(front.pos[0], front.pos[1], already_updated, cell_queue)
+    except:
+        return
+        '''
+        
+
 
 def initGrid():
     global STATE_GRID
     global PATTERNS_DICT
     
-    STATE_GRID = [[Cell(PATTERNS, (x,y)) for x in range(OUTW)] for y in range(OUTH)]
+    domain = set([x[0] for x in PATTERNS_DICT.keys()])
+    STATE_GRID = [[Cell(domain, (x,y)) for x in range(OUTW)] for y in range(OUTH)]
 
 def getIndex(x, y):
     return x + y * WIDTH
@@ -183,11 +274,18 @@ def dirToString(di):
    if (di == SOUTH): return "S"
    if (di == EAST): return "E"
    if (di == WEST): return "W"
+                        
+def StringToDir(di):
+    if (di == "N"): return NORTH
+    if (di == "S"): return SOUTH
+    if (di == "E"): return EAST
+    if (di == "W"): return WEST              
 
 def shannonEntropy(domain):
         result = 0
         for t in domain:
-            result += WEIGHTS[t[0]] * log(WEIGHTS[t[0]])
+            result += WEIGHTS[t] * log(WEIGHTS[t])
+        result = -result
         return round(result, 4)
 
 class Cell:
@@ -198,6 +296,7 @@ class Cell:
         self.se = shannonEntropy(d)
     def __str__(self):
         return str(len(self.domain))
+        #return str(self.se)
     def __repr__(self):
         return self.__str__()
     
