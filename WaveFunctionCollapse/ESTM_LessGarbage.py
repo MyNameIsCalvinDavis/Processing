@@ -56,15 +56,16 @@ class Model:
             3:("Pattern3", 3,3),
             2:("Pattern2", 3,3),
             5:("Pattern5", 5,5),
-            4:("Pattern4", 3,3),
-            1:("Flower", 10,10),
+            4:("Pattern4", 2,2),
+            1:("Flower", 5,5),
             6:("Pattern6", 4,4),
             7:("FlowersBig", 46,46),
-            8:("BeachLand2", 20,10),
-            9:("BeachLand3", 10,5),
-            10:("BeachLand4", 4,7)
+            8:("BeachLand2", 20,10), # Complex big one
+            9:("BeachLand3", 10,5), # River
+            10:("BeachLand4", 4,7), # git example
+            11:("BeachLand", 5,5) # Diagonal of yellow
         }
-        choice = 6
+        choice = 11
 
         self.WIDTH = self.imgs[choice][1]
         self.HEIGHT = self.imgs[choice][2]
