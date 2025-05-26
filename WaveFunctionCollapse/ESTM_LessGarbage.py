@@ -70,7 +70,6 @@ class Model:
         self.HEIGHT = self.imgs[choice][2]
 
         self.STATE_GRID = []
-
         self.COLLAPSED = []
         
         self.img = load_image("patterns/{}.png".format(self.imgs[choice][0]))
@@ -78,112 +77,67 @@ class Model:
     def getCell(self, x, y):
         return self.STATE_GRID[y][x]
     
+    def getNbs(self, cell):
+        x = cell.pos[0]
+        y = cell.pos[1]
+        
+        nbs = []
+        for d in (NORTH, EAST, SOUTH, WEST):
+            if ((x + d[0]) < 0 or (x + d[0]) >= OUTW or (y + d[1]) < 0 or (y + d[1]) >= OUTH):
+                continue
+            nb_c = m.getCell(x+d[0], y+d[1])
+            nbs.append((nb_c, d))
+        return nbs
+    
     def updateAdjacentCellDomains(self, cell):
-        #print("\nENTER UACD", cell.pos, GYBtoString(cell.domain))
+        # Do we add a list of already visited cells? Dunno
         
         stack = [cell]
-        
-        # Get neighbors of this cell
         while stack:
             mycell = stack.pop(0)
-            x = mycell.pos[0]
-            y = mycell.pos[1]
+            nbs = self.getNbs(mycell) # ( (nb_cell, dirToNb_cell), ... )
             
-            
-            nbs = []
-            for d in (NORTH, EAST, SOUTH, WEST):
-                
-                if ((x + d[0]) < 0 or (x + d[0]) >= OUTW or (y + d[1]) < 0 or (y + d[1]) >= OUTH):
-                    continue
-                nb_c = m.getCell(x+d[0], y+d[1])
-                nbs.append((nb_c, d))
-
             # N E S W
-            #self.pprint_w_colors()
-            #print("##Main:", mycell.pos, GYBtoString(mycell.domain))
-            #print("##NBs:", [x[0].pos for x in nbs])
-            
-            for nb, d in nbs:
-                # Where d is the direction from the original tile to the neighbor
+            for nb, d in nbs: # d is maincell -> nb direction
                 if len(nb.domain) == 1: continue
                 if nb.pos == mycell.pos: raise
 
-                '''
-                for m_color in mycell.domain:
-                    invalid_domains = []
-                    for n_color in nb.domain:
-                        pattern = (n_color, m_color, dirToString(getOppositeDir(d)))
-                        pattern = (n_color, m_color, dirToString(d))
-
-                        if pattern not in PATTERNS_DICT:
-                            invalid_domains.append(n_color)
-                '''
-                #invalid_domains = []
-                #print("I'm", nb.pos, GYBtoString(nb.domain))
                 invalid_domains = []
-                for n_color in nb.domain:
-                    
-                    for m_color in mycell.domain:
-                        # BWG --E--> BWGY
-                        # f2		f1
+                for n_color in nb.domain.copy():
+                    for m_color in mycell.domain.copy():
                         pattern = (n_color, m_color, dirToString(d))
-                        #print("Can", GYBtoString(n_color), "be", dirToString(d), "of", GYBtoString(m_color), "?")
-                        #print("    ", GYBtoString(pattern))
                         
-                        if pattern in PATTERNS_DICT:
-                            #print("Yes, check next neighbor color")
-                            break
-                        else:
-                            pass
-                            #print("No, check next main color")
+                        if pattern in PATTERNS_DICT: break
                     else:
-                        #print("Checked all main colors (", GYBtoString(mycell.domain), ") against", GYBtoString(n_color), "and found no matches")
-                        #print("-- (mark for deletion)", nb.pos, GYBtoString(nb.domain), "Remove --->", GYBtoString(n_color))
                         invalid_domains.append(n_color)
+                        nb.domain.remove(n_color)
                         stack.append(nb)
                 
-                if invalid_domains:
-                    for invalid in invalid_domains:
-                        #print("--", nb.pos, GYBtoString(nb.domain), "Remove --->", GYBtoString(invalid))
-                        #print("-- Before:", GYBtoString(nb.domain))
-                        nb.domain.remove(invalid)
-                        #print("-- After:", GYBtoString(nb.domain))
-                
-                '''
-                if invalid_domains:
-                    for invalid in invalid_domains:
-                        print("--", nb.pos, GYBtoString(nb.domain), "Remove --->", GYBtoString(invalid))
-                        nb.domain.remove(invalid)
-                    stack.append(nb)
-                '''
                 nb.shannonEntropy()
-                
-                #print("  Final neighbor domain:", nb.pos, GYBtoString(nb.domain))
-            #print("After going through these neighbors:")
-            #self.pprint_w_colors()
+        
+        # After the stack is empty, collapse all of the 1-domain cells
+        one_d_list = sum(self.STATE_GRID, [])
+        for x in one_d_list:
+            if len(x.domain) == 1 and x.pos not in self.COLLAPSED:
+                x.collapse()
+                self.COLLAPSED.append(x.pos)
     
     def pickLowestEntropyCell(self):
-        # Pick the lowest entropy cell
-        one_d_list = sum(self.STATE_GRID, [])
-        sorted_x = sorted(one_d_list, key=operator.attrgetter('se'))
+        sorted_x = sorted(
+            sum(self.STATE_GRID, []),
+            key=operator.attrgetter('se')
+        )
         
-        minn = sorted_x[0]
-        #print("Minn:", minn.pos, len(minn.domain), minn.se)
+        # Return the lowest non-zero entropy
         options = []
         for x in sorted_x:
-            #print(x.se, len(x.domain), end="-")
-            if (len(x.domain) > 1) and (x.se >= minn.se):
+            if (len(x.domain) > 1) and (x.se >= sorted_x[0].se):
                 options.append(x)
         
-        #options = [x for x in sorted_x if (x.se == minn.se) and (x.pos not in self.COLLAPSED)]
-        #print("\nOptions:", len(options))
         try:
-            a = random.choice(options)
-            #print("Lowest cell", a.pos)
-            return a
+            return random.choice(options)
         except:
-            #print("Lowest cell(m)", minn.pos)
-            return minn
+            return sorted_x[0]
     
     def getIndex(self, x, y):
         return x + y * self.WIDTH
@@ -207,7 +161,6 @@ class Model:
                 else: weights[c] = 1
                 
                 # Check N E S W
-                
                 for d in (NORTH, EAST, SOUTH, WEST):
                     dir_loc = self.getIndex(x + d[0], y + d[1])
                     if (dir_loc < 0 or dir_loc >= self.WIDTH * self.HEIGHT or (x + d[0]) >= self.WIDTH or (x + d[0]) < 0 or (y + d[1]) >= self.HEIGHT or (y + d[1]) < 0):
@@ -227,7 +180,11 @@ class Model:
         for y in range(OUTH):
             the_row = []
             for x in range(OUTW):
-                the_row.append( Cell( set([j[0] for j in PATTERNS_DICT.keys()]), (x,y)) )
+                the_row.append(
+                    Cell( set( [j[0] for j in PATTERNS_DICT.keys()] ), 
+                          (x,y)
+                    )
+                )
             self.STATE_GRID.append(the_row)
 
     def pprint_w_colors(self):
@@ -246,31 +203,19 @@ m = 0
 def setup():
     global m
     size(OUTW*20,OUTH*20)
-    global img
-    global LAST_CELL
     m = Model()
-    
-    #size(WIDTH,HEIGHT)
-    
     m.genRules()
     for pattern in list(PATTERNS):
         print(GYBtoString(pattern[0]), GYBtoString(pattern[1]), pattern[2])
     pprint(list(PATTERNS))
     m.initGrid()
     
-    #pprint(STATE_GRID)
-    
 def draw():
-    #image(img, 0, 0)
-    #time.sleep(0.1)
+    
     background(255)
-    num_rows = OUTW
-    num_cols = OUTH
-    
     square_size = 20
-    
-    for row in range(num_rows):
-        for col in range(num_cols):
+    for row in range(OUTW):
+        for col in range(OUTH):
             x = col * square_size
             y = row * square_size
             
@@ -281,26 +226,9 @@ def draw():
             fill(255)
             text(len(m.STATE_GRID[row][col].domain),x+10,y+10)
     
-    
     next_cell = m.pickLowestEntropyCell()
-    print("#####\nPick lowest cell:", next_cell.pos, next_cell.domain)
-    if len(next_cell.domain) == 1:
-        time.sleep(1)
-        return
-    
     next_cell.collapse()
-    print("After collapse next cell:", next_cell.pos, next_cell.domain)
-    
-    print("Update ACD", next_cell.pos)
     m.updateAdjacentCellDomains(next_cell)
-    
-    print("Finding 1 domain cells")
-    one_d_list = sum(m.STATE_GRID, [])
-    for x in one_d_list:
-        if len(x.domain) == 1 and x.pos not in m.COLLAPSED:
-            
-            x.collapse()
-            m.COLLAPSED.append(x.pos)
 
 def getOppositeDir(di):
    if (di == NORTH): return SOUTH
