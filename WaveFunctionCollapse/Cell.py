@@ -1,3 +1,7 @@
+# PY5 IMPORTED MODE CODE
+import random
+
+WEIGHTS = {}
 
 class Cell:
     """
@@ -24,17 +28,21 @@ class Cell:
         
     def collapse(self):
         # Collapse the cell into a single domain, chosen randomly & weighted
-
+        print("Collapsing", self.pos, self.__str__())
+        
         weights = []
         list_domain = list(self.domain) # Sets are unordered
+        if len(self.domain) == 0: raise
         for col in list_domain:
-            weights.append(WEIGHTS[col]*10)
-        
+            weights.append(WEIGHTS[str(col)]*10)
         collapsed_value = random.choices(list_domain, weights=weights)
         self.domain = set(collapsed_value)
         self.shannonEntropy()
         self.value = collapsed_value[0]
-        if len(self.domain) == 0: raise
+        
+        print("VAL:", self.value, type(self.value)) # Should be a tile not str
+        print("Final value for collapsed cell", self.pos, self.value)
+        
 
 if __name__ == "__main__":
     print("Cell.py can't be run standalone")

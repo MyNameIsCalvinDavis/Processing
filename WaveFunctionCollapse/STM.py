@@ -1,8 +1,6 @@
 from pprint import pprint
 from Model import *
-import operator
 import time
-import random
 import numpy as np
 
 """
@@ -34,27 +32,39 @@ def setup():
     for pattern in list(PATTERNS):
         #print(GYBtoString(pattern[0]), GYBtoString(pattern[1]), pattern[2])
         print(pattern)
-    m.initGrid()
-    
+    m.initGrid()    
 
-    
+def drawDataAt(data, x,y):
+    pass
+
 def draw():
     background(255)
+    
+    cell_size_scale = 1
     square_size = 20
     for row in range(OUTW):
-        for col in range(OUTH):
+        for col in range(OUTH): # I've never enumerated on range() before, weird
             x = col * square_size
             y = row * square_size
+            # Draw a cell at x,y
+            # Get the cell at j,i
+            # cell = m.getCell(j,i)
+            # This cell will have a value that's a tile, let's draw that Tile
+            # print(m.STATE_GRID[row][col].value, type(m.STATE_GRID[row][col].value))
+            
             
             val = 100 if len(m.STATE_GRID[row][col].domain) > 1 else m.STATE_GRID[row][col].value
             try: fill(val)
             except: fill(100)
             rect(x,y,square_size,square_size)
-            fill(255)
+            fill(0)
             text(len(m.STATE_GRID[row][col].domain),x+10,y+10)
     
     next_cell = m.pickLowestEntropyCell()
+    print("LEC:", next_cell.pos, next_cell)
     next_cell.collapse()
+    
+    print("Enter UACD", next_cell.pos, next_cell)
     m.updateAdjacentCellDomains(next_cell)
 
 

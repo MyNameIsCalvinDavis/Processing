@@ -2,6 +2,8 @@
 
 from Tile import *
 from Cell import *
+import operator
+
 
 NORTH = (0,-1)
 EAST = (1,0)
@@ -13,7 +15,6 @@ OUTH = 5
 
 PATTERNS_DICT = {}
 PATTERNS = set()
-WEIGHTS = {}
 
 
 
@@ -30,9 +31,10 @@ class Model:
             8:("BeachLand2", 20,10),
             9:("BeachLand3", 10,5),
             10:("BeachLand4", 4,7),
-            11:("BlueDots", 15,15)
+            11:("BlueDots", 15,15),
+            12:("BlueDots2", 15,15)
         }
-        choice = 11
+        choice = 12
 
         self.WIDTH = self.imgs[choice][1]
         self.HEIGHT = self.imgs[choice][2]
@@ -56,7 +58,7 @@ class Model:
         for d in (NORTH, EAST, SOUTH, WEST):
             if ((x + d[0]) < 0 or (x + d[0]) >= OUTW or (y + d[1]) < 0 or (y + d[1]) >= OUTH):
                 continue
-            nb_c = m.getCell(x+d[0], y+d[1])
+            nb_c = self.getCell(x+d[0], y+d[1])
             nbs.append((nb_c, d))
         return nbs
     
@@ -69,23 +71,31 @@ class Model:
             nbs = self.getNbs(mycell) # ( (nb_cell, dirToNb_cell), ... )
             
             # N E S W
+            print("\n-- Main:", mycell.pos, mycell.domain)
             for nb, d in nbs: # d is maincell -> nb direction
                 if len(nb.domain) == 1: continue
                 if nb.pos == mycell.pos: raise
-
-                invalid_domains = []
+                
+                print("-- NB:", nb.pos, nb.domain)
                 for n_color in nb.domain.copy():
                     for m_color in mycell.domain.copy():
                         pattern = (n_color, m_color, dirToString(d))
                         
-                        if pattern in PATTERNS_DICT: break
+                        print("Is", pattern, "in PATTERNS_DICT?", end=" ")
+                        if pattern in PATTERNS_DICT:
+                            print(pattern in PATTERNS_DICT)
+                            #print("Yes, go to next NB tile")
+                            break
+                        else:
+                            pass
+                            #print("No, check next main tile")
                     else:
-                        invalid_domains.append(n_color)
+                        print("Remove", n_color, "from neighbor cell", nb.pos)
                         nb.domain.remove(n_color)
                         stack.append(nb)
                 
                 nb.shannonEntropy()
-        
+                print("Final NB domain", nb.pos, len(nb.domain), nb.domain)
         # After the stack is empty, collapse all of the 1-domain cells
         one_d_list = sum(self.STATE_GRID, [])
         for x in one_d_list:
@@ -145,8 +155,8 @@ class Model:
                 else: numberOf[new_tile] = 1
                 
                 # Weights
-                if new_tile in weights: weights[new_tile] += 1
-                else: weights[new_tile] = 1
+                if new_tile in weights: weights[str(new_tile)] += 1
+                else: weights[str(new_tile)] = 1
                 
                 row.append(new_tile)
             self.TILE_GRID.append(row)
@@ -162,7 +172,7 @@ class Model:
                     if not nb_tile: continue
                     
                     # tile can be opp<d> of nb_tile
-                    pattern = (tile, nb_tile, dirToString(getOppositeDir(d)))
+                    pattern = (str(tile), str(nb_tile), dirToString(getOppositeDir(d)))
                     
                     if pattern in PATTERNS_DICT: PATTERNS_DICT[pattern] += 1
                     else: PATTERNS_DICT[pattern] = 1
@@ -180,6 +190,7 @@ class Model:
                           (x,y)
                     )
                 )
+                
             self.STATE_GRID.append(the_row)
 
     def pprint_w_colors(self):
