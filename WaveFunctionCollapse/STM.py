@@ -1,7 +1,7 @@
 from pprint import pprint
 from Model import *
 import time
-import numpy as np
+#import numpy as np
 
 """
 TODO
@@ -34,11 +34,34 @@ def setup():
         print(pattern)
     m.initGrid()    
 
-def drawDataAt(data, x,y):
-    pass
+def drawDataAt(col,row, square_size=20, n=3):
+    mycell = m.getCell(col,row)
+    #print("DDA:", mycell.pos)
+    if len(mycell.domain) > 1: return
+    if len(mycell.domain) == 0: raise
+    
+    # oof
+    # (('#FFFFFFFF', '#FFFFFFFF', '#FFFFFFFF'), ('#FFFFFFFF', '#2200FFFF', '#FFFFFFFF'), ('#FFFFFFFF', '#FFFFFFFF', '#FFFFFFFF'))
+    data = NAME_TO_TILE[list(mycell.domain)[0]].data
+    rect_size = square_size / n
+    
+
+    for i,rw in enumerate(data):
+        for j,clr in enumerate(rw):
+            fill(clr)
+            stroke(255)
+            rect(
+                col*square_size + j*rect_size,
+                row*square_size + i*rect_size,
+                rect_size, rect_size) # PITA
+            
+    
+            
+            
+    
 
 def draw():
-    background(255)
+    background(100)
     
     cell_size_scale = 1
     square_size = 20
@@ -52,19 +75,23 @@ def draw():
             # This cell will have a value that's a tile, let's draw that Tile
             # print(m.STATE_GRID[row][col].value, type(m.STATE_GRID[row][col].value))
             
-            
+            '''
             val = 100 if len(m.STATE_GRID[row][col].domain) > 1 else m.STATE_GRID[row][col].value
             try: fill(val)
             except: fill(100)
             rect(x,y,square_size,square_size)
+            '''
             fill(0)
             text(len(m.STATE_GRID[row][col].domain),x+10,y+10)
+            drawDataAt(col,row, square_size, m.N)
+
     
+    #m.pprint_w_colors()
     next_cell = m.pickLowestEntropyCell()
-    print("LEC:", next_cell.pos, next_cell)
+    #print("LEC:", next_cell.pos, next_cell)
     next_cell.collapse()
     
-    print("Enter UACD", next_cell.pos, next_cell)
+    #print("Enter UACD", next_cell.pos, next_cell)
     m.updateAdjacentCellDomains(next_cell)
 
 

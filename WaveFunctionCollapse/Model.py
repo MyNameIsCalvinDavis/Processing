@@ -3,6 +3,7 @@
 from Tile import *
 from Cell import *
 import operator
+import random
 
 
 NORTH = (0,-1)
@@ -10,8 +11,8 @@ EAST = (1,0)
 SOUTH = (0,1)
 WEST = (-1,0)
 
-OUTW = 5
-OUTH = 5
+OUTW = 30
+OUTH = 30
 
 PATTERNS_DICT = {}
 PATTERNS = set()
@@ -34,7 +35,7 @@ class Model:
             11:("BlueDots", 15,15),
             12:("BlueDots2", 15,15)
         }
-        choice = 12
+        choice = 11
 
         self.WIDTH = self.imgs[choice][1]
         self.HEIGHT = self.imgs[choice][2]
@@ -71,31 +72,31 @@ class Model:
             nbs = self.getNbs(mycell) # ( (nb_cell, dirToNb_cell), ... )
             
             # N E S W
-            print("\n-- Main:", mycell.pos, mycell.domain)
+            #print("\n-- Main:", mycell.pos, mycell.domain)
             for nb, d in nbs: # d is maincell -> nb direction
                 if len(nb.domain) == 1: continue
                 if nb.pos == mycell.pos: raise
                 
-                print("-- NB:", nb.pos, nb.domain)
+                #print("-- NB:", nb.pos, nb.domain)
                 for n_color in nb.domain.copy():
                     for m_color in mycell.domain.copy():
                         pattern = (n_color, m_color, dirToString(d))
                         
-                        print("Is", pattern, "in PATTERNS_DICT?", end=" ")
+                        #print("Is", pattern, "in PATTERNS_DICT?", end=" ")
                         if pattern in PATTERNS_DICT:
-                            print(pattern in PATTERNS_DICT)
+                            #print(pattern in PATTERNS_DICT)
                             #print("Yes, go to next NB tile")
                             break
                         else:
                             pass
                             #print("No, check next main tile")
                     else:
-                        print("Remove", n_color, "from neighbor cell", nb.pos)
+                        #print("Remove", n_color, "from neighbor cell", nb.pos)
                         nb.domain.remove(n_color)
                         stack.append(nb)
                 
                 nb.shannonEntropy()
-                print("Final NB domain", nb.pos, len(nb.domain), nb.domain)
+                #print("Final NB domain", nb.pos, len(nb.domain), nb.domain)
         # After the stack is empty, collapse all of the 1-domain cells
         one_d_list = sum(self.STATE_GRID, [])
         for x in one_d_list:
@@ -108,16 +109,17 @@ class Model:
             sum(self.STATE_GRID, []),
             key=operator.attrgetter('se')
         )
-        
+        #print([float(x.se) for x in sorted_x])
         # Return the lowest non-zero entropy
         options = []
         for x in sorted_x:
             if (len(x.domain) > 1) and (x.se >= sorted_x[0].se):
                 options.append(x)
-        
+        #print([(float(x.se), x.pos) for x in options])
         try:
             return random.choice(options)
-        except:
+        except Exception as e:
+            #print(e)
             return sorted_x[0]
     
     def getIndex(self, x, y):

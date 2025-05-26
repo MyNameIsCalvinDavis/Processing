@@ -2,6 +2,7 @@
 HASH_TO_TILE = {}
 TILE_TO_HASH = {}
 HASH_TO_NAME = {} # 123123123 : "AA", printing purposes only
+NAME_TO_TILE = {}
 _NAMES = [x+y for x in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" for y in "1234567890"]
 
 class Tile:
@@ -17,6 +18,7 @@ class Tile:
         for name in _NAMES:
             if name not in list(HASH_TO_NAME.values()):
                 HASH_TO_NAME[self.hash()] = name
+                NAME_TO_TILE[name] = self
                 break
         else:
             raise # Run out of tile names, add more

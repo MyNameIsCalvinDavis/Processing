@@ -28,7 +28,7 @@ class Cell:
         
     def collapse(self):
         # Collapse the cell into a single domain, chosen randomly & weighted
-        print("Collapsing", self.pos, self.__str__())
+        #print("Collapsing", self.pos, self.__str__())
         
         weights = []
         list_domain = list(self.domain) # Sets are unordered
@@ -40,8 +40,8 @@ class Cell:
         self.shannonEntropy()
         self.value = collapsed_value[0]
         
-        print("VAL:", self.value, type(self.value)) # Should be a tile not str
-        print("Final value for collapsed cell", self.pos, self.value)
+        #print("VAL:", self.value, type(self.value)) # Should be a tile not str
+        #print("Final value for collapsed cell", self.pos, self.value)
         
 
 if __name__ == "__main__":
