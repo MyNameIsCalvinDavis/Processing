@@ -35,7 +35,7 @@ class Model:
             11:("BlueDots", 15,15),
             12:("BlueDots2", 15,15)
         }
-        choice = 11
+        choice = 10
 
         self.WIDTH = self.imgs[choice][1]
         self.HEIGHT = self.imgs[choice][2]
@@ -162,7 +162,7 @@ class Model:
                 
                 row.append(new_tile)
             self.TILE_GRID.append(row)
-        
+        print("Total tiles:", len(set([str(x) for x in sum(self.TILE_GRID, [])])))
         # Process Tile Grid into patterns
         for i,row in enumerate(self.TILE_GRID):
             for j,tile in enumerate(row):

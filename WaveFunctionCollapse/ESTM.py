@@ -64,7 +64,7 @@ class Model:
             9:("BeachLand3", 10,5),
             10:("BeachLand4", 4,7)
         }
-        choice = 6
+        choice = 10
 
         self.WIDTH = self.imgs[choice][1]
         self.HEIGHT = self.imgs[choice][2]

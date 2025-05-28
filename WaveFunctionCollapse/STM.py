@@ -88,8 +88,9 @@ def draw():
     
     #m.pprint_w_colors()
     next_cell = m.pickLowestEntropyCell()
-    #print("LEC:", next_cell.pos, next_cell)
+    print("LEC:", next_cell.pos, next_cell)
     next_cell.collapse()
+    print("val:", next_cell.pos, next_cell.domain)
     
     #print("Enter UACD", next_cell.pos, next_cell)
     m.updateAdjacentCellDomains(next_cell)
