@@ -72,7 +72,7 @@ class Model:
         self.STATE_GRID = []
         self.COLLAPSED = []
         
-        self.img = load_image("patterns/{}.png".format(self.imgs[choice][0]))
+        self.img = load_image("../patterns/{}.png".format(self.imgs[choice][0]))
     
     def getCell(self, x, y):
         return self.STATE_GRID[y][x]

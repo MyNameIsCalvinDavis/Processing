@@ -5,7 +5,6 @@ from Cell import *
 import operator
 import random
 
-
 NORTH = (0,-1)
 EAST = (1,0)
 SOUTH = (0,1)
@@ -45,7 +44,7 @@ class Model:
         self.TILE_GRID = []
         self.COLLAPSED = []
         
-        self.img = load_image("patterns/{}.png".format(self.imgs[choice][0]))
+        self.img = load_image("../patterns/{}.png".format(self.imgs[choice][0]))
         self.img_pixels = []
     
     def getCell(self, x, y):

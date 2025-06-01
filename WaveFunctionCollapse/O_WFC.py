@@ -6,14 +6,16 @@ import random
 
 _NAMES = [x+y for x in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" for y in "1234567890"]
 
-OUTW = 15
-OUTH = 10
-CELL_SIZE = 40
+OUTW = 40
+OUTH = 40
+CELL_SIZE = 10
 N = 3
 NORTH = (0,-1)
 EAST = (1,0)
 SOUTH = (0,1)
 WEST = (-1,0)
+DIRS = { NORTH:"NORTH", SOUTH:"SOUTH", EAST:"EAST", WEST:"WEST" }
+OPPOSITE_DIRS = { "NORTH":"SOUTH", "SOUTH":"NORTH", "EAST":"WEST", "WEST":"EAST" }
 
 
 IMG = None
@@ -52,9 +54,14 @@ def setup():
         10:("BeachLand4", 4,7),
         11:("BlueDots", 15,15),
         12:("BlueDots2", 15,15),
-        13:("City", 9,9)
+        13:("City", 9,9),
+        14:("some_design", 30,30),
+        15:("CityScape", 10,10),
+        16:("CircleSquare", 10,10),
+        17:("FlowerSmall", 10,10),
+        18:("FlowerSmallRoots", 10,15)
     }
-    choice = 13
+    choice = 17
 
     WIDTH = imgs[choice][1]
     HEIGHT = imgs[choice][2]
@@ -77,20 +84,81 @@ def draw():
     #for cell in sum(STATE_GRID, []):
     #    cell.collapse()
     #    drawCell_center(cell=cell)
-    drawCellOutlines()
+    #drawCellOutlines()
     drawStateGrid()
     
     # Pick next cell based on entropy
     next_cell = pickLowestEntropyCell()
+    #print("### Pick next cell:", next_cell.x, next_cell.y)
+
     
     # Collapse that cell into a single domain
     next_cell.collapse()
-    drawCell_center(cell=next_cell)
+    #drawCell_center(cell=next_cell)
     
+    #print("Update")
     # With the collapsed domain, propagate to adjacent tiles
-    # Go through STATE_GRID and draw all 1-domain tiles
+    updateAdjacentCellDomains(next_cell)
+    #print("Update over")
     
+    # Go through STATE_GRID and collapse/draw all 1-domain tiles
+    one_d_list = sum(STATE_GRID, [])
+    for x in one_d_list:
+        if len(x.domain) == 1:
+            drawCell_center(cell=x)
     # Repeat
+
+def updateAdjacentCellDomains(cell):
+    
+    stack = [cell]
+    while stack:
+        #print("== Current stack:", [(x.x, x.y) for x in stack])
+        mycell = stack.pop(0)
+        #print("Popped", mycell.x, mycell.y)
+        #print("====== New stack:", [(x.x, x.y) for x in stack])
+
+        nbs = getNeighborCells(mycell) # ( (nb_cell, dirToNb_cell), ... )
+        
+        #print("Main cell:", mycell.x,mycell.y, len(mycell.domain))
+        #print([x for x in nbs])
+        for nb, d in nbs: # d is maincell -> nb direction
+            #print("-- Check:", nb.x,nb.y, len(nb.domain))
+            if len(nb.domain) == 1: continue
+            if (nb.x,nb.y) == (mycell.x,mycell.y): raise
+            
+            # What tiles can I be next to?
+            
+            # What tiles can the neighbor be next to?
+            # "Next to" meaning, direction from them to me (NSEW)
+            #other_valid_d_tiles = nb.dir_adj[OPPOSITE_DIR[d]]
+            
+            # Find the overlap of their valid next-to tiles, to my domain
+            valid_tiles_for_neighbor = []
+            for tile_n in nb.domain:
+                for tile_o in mycell.domain:
+                    # Compare all of our tiles
+                    # Can your tile be next to my tile?
+                    # If yes, your tile is allowed, move on to the next of your tiles to compare
+                    
+                    if tile_n in tile_o.dir_adj[d]:
+                        valid_tiles_for_neighbor.append(tile_n)
+                        break
+                else:
+                    # tile_n is not in any of mycell's allowed adjacent tiles
+                    # print("Removing", tile_n, "from neighbor tile")
+                    pass
+                    
+            
+            # Set the neighbor domain to the filtered list
+            # Not going to remove bad tiles, just set nb domain to good tiles
+            # print("Num valid tiles for neighbor:", len(valid_tiles_for_neighbor))
+            old_domain = len(nb.domain)
+            nb.domain = valid_tiles_for_neighbor
+            new_domain = len(nb.domain)
+            if old_domain != new_domain:
+                #print("Adding", nb.x,nb.y, "to stack")
+                stack.append(nb)
+            
             
 def drawStateGrid():
     for cell in sum(STATE_GRID, []):
@@ -113,8 +181,24 @@ class Cell:
     
     def collapse(self):
         # Choose a tile at random from the domain
+        if len(self.domain) == 1: return
         self.domain = [random.choice(self.domain)]
         self.entropy = self.getEntropy()
+    
+def getNeighborCells(cell):
+    x = cell.x
+    y = cell.y
+    
+    nbs = []
+    for d in (NORTH, EAST, SOUTH, WEST):
+        if ((x + d[0]) < 0 or \
+            (x + d[0]) >= OUTW or \
+            (y + d[1]) < 0 or \
+            (y + d[1]) >= OUTH):
+            continue
+        nb_c = getCell(x+d[0], y+d[1])
+        nbs.append((nb_c, DIRS[d]))
+    return nbs
     
 
 class Tile:
@@ -198,6 +282,9 @@ class Tile:
         # Given self.data, return the x,y within
         return self.data[y][x]
 
+def getCell(x,y):
+    return STATE_GRID[y][x]
+
 def pickLowestEntropyCell():
     sorted_x = sorted(
         sum(STATE_GRID, []),
@@ -245,7 +332,7 @@ def drawTile(x=None,y=None,tile=None):
         for y in range(N):
             colr = tile.getColorFromData(x, y)
             fill(colr)
-            stroke(240)
+            #stroke(240)
             rect(anchor_y + (y * mini_cell_size),
                  anchor_x + (x * mini_cell_size), mini_cell_size, mini_cell_size)
 
@@ -283,7 +370,7 @@ def drawCell_center(x=None,y=None,cell=None):
         colr = cell.domain[0].getColorFromData(N//2,N//2)
         
     fill(colr)
-    stroke(240)
+    #stroke(240)
     rect(anchor_x,
          anchor_y, CELL_SIZE, CELL_SIZE)
             
