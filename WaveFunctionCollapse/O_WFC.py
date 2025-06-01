@@ -6,9 +6,9 @@ import random
 
 _NAMES = [x+y for x in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" for y in "1234567890"]
 
-OUTW = 40
-OUTH = 40
-CELL_SIZE = 10
+OUTW = 100
+OUTH = 100
+CELL_SIZE = 5
 N = 3
 NORTH = (0,-1)
 EAST = (1,0)
@@ -30,7 +30,7 @@ def drawCellOutlines():
         for col in range(OUTW):
             x = col * CELL_SIZE
             y = row * CELL_SIZE
-            stroke(100)
+            stroke(0)
             no_fill()
             rect(x, y, CELL_SIZE, CELL_SIZE)
 
@@ -39,6 +39,7 @@ def setup():
     global IMG
     global IMG_WIDTH
     global IMG_HEIGHT
+    global s_time
     size(OUTW*CELL_SIZE,OUTH*CELL_SIZE)
     s_time = datetime.now()
     imgs = {
@@ -56,12 +57,18 @@ def setup():
         12:("BlueDots2", 15,15),
         13:("City", 9,9),
         14:("some_design", 30,30),
-        15:("CityScape", 10,10),
+        15:("CityScape", 15,10),
         16:("CircleSquare", 10,10),
         17:("FlowerSmall", 10,10),
-        18:("FlowerSmallRoots", 10,15)
+        18:("FlowerSmallRoots", 10,15),
+        19:("Water", 16,16),
+        20:("Skyline", 39,28),
+        21:("Skyline2", 32,31),
+        22:("Dungeon", 17,15),
+        23:("Nested", 14,14),
+        24:("Platformer", 72,32)
     }
-    choice = 17
+    choice = 21
 
     WIDTH = imgs[choice][1]
     HEIGHT = imgs[choice][2]
@@ -69,91 +76,73 @@ def setup():
     IMG.load_pixels()
     IMG_WIDTH = IMG.width
     IMG_HEIGHT = IMG.height
+    print("Extract tiles before", datetime.now() - s_time)
     extractAllTiles()
-    print(datetime.now() - s_time)
+    random.shuffle(ALL_TILES)
+    print("Extract tiles after", datetime.now() - s_time)
+    print("Extract adjacencies before", datetime.now() - s_time)
     extractTileAdjacencies()
+    print("Extract adjacencies before", datetime.now() - s_time)
     print(datetime.now() - s_time)
+    
+    # How many unique tiles
+    s = set()
+    for tile in ALL_TILES:
+        s.add(tile.getHash())
+    print(len(ALL_TILES), len(s))
+    
     initStateGrid()
     #print(ALL_TILES[0].isCompatible(ALL_TILES[9], "SOUTH"))
     #print(ALL_TILES[30].dir_adj)
 
 def draw():
     background(240)
-    #for tile in ALL_TILES:
-    #    drawTile(tile=tile)
-    #for cell in sum(STATE_GRID, []):
-    #    cell.collapse()
-    #    drawCell_center(cell=cell)
-    #drawCellOutlines()
     drawStateGrid()
-    
+    #drawCellOutlines()
+    '''
+    for i,tile in enumerate(ALL_TILES):
+        drawTile(0,i,tile=tile)
+        #text(str((0,i)), 0 * CELL_SIZE,i * CELL_SIZE)
+        #print(tile.data)
+        #print(0, i, end="")
+        #print(ALL_TILES[15].dir_adj)
+        #print(ALL_TILES[15].dir_adj["EAST"])
+        
+        for idx,t in enumerate(tile.dir_adj["SOUTH"]):
+            drawTile(1+idx,i,tile=t)
+            #text("H", CELL_SIZE+idx * CELL_SIZE,i * CELL_SIZE)
+            #print("(", 1+idx, ",", i, ")")
+        
+    drawCellOutlines()
+    no_loop()
+    '''
     # Pick next cell based on entropy
     next_cell = pickLowestEntropyCell()
-    #print("### Pick next cell:", next_cell.x, next_cell.y)
-
-    
-    # Collapse that cell into a single domain
     next_cell.collapse()
-    #drawCell_center(cell=next_cell)
-    
-    #print("Update")
-    # With the collapsed domain, propagate to adjacent tiles
     updateAdjacentCellDomains(next_cell)
-    #print("Update over")
-    
-    # Go through STATE_GRID and collapse/draw all 1-domain tiles
-    one_d_list = sum(STATE_GRID, [])
-    for x in one_d_list:
-        if len(x.domain) == 1:
-            drawCell_center(cell=x)
+
     # Repeat
+    #'''
 
 def updateAdjacentCellDomains(cell):
     
     stack = [cell]
     while stack:
-        #print("== Current stack:", [(x.x, x.y) for x in stack])
         mycell = stack.pop(0)
-        #print("Popped", mycell.x, mycell.y)
-        #print("====== New stack:", [(x.x, x.y) for x in stack])
-
         nbs = getNeighborCells(mycell) # ( (nb_cell, dirToNb_cell), ... )
         
-        #print("Main cell:", mycell.x,mycell.y, len(mycell.domain))
-        #print([x for x in nbs])
         for nb, d in nbs: # d is maincell -> nb direction
-            #print("-- Check:", nb.x,nb.y, len(nb.domain))
-            if len(nb.domain) == 1: continue
             if (nb.x,nb.y) == (mycell.x,mycell.y): raise
-            
-            # What tiles can I be next to?
-            
-            # What tiles can the neighbor be next to?
-            # "Next to" meaning, direction from them to me (NSEW)
-            #other_valid_d_tiles = nb.dir_adj[OPPOSITE_DIR[d]]
-            
-            # Find the overlap of their valid next-to tiles, to my domain
             valid_tiles_for_neighbor = []
             for tile_n in nb.domain:
                 for tile_o in mycell.domain:
-                    # Compare all of our tiles
-                    # Can your tile be next to my tile?
-                    # If yes, your tile is allowed, move on to the next of your tiles to compare
-                    
                     if tile_n in tile_o.dir_adj[d]:
                         valid_tiles_for_neighbor.append(tile_n)
                         break
-                else:
-                    # tile_n is not in any of mycell's allowed adjacent tiles
-                    # print("Removing", tile_n, "from neighbor tile")
-                    pass
-                    
             
-            # Set the neighbor domain to the filtered list
-            # Not going to remove bad tiles, just set nb domain to good tiles
-            # print("Num valid tiles for neighbor:", len(valid_tiles_for_neighbor))
             old_domain = len(nb.domain)
-            nb.domain = valid_tiles_for_neighbor
+            
+            nb.domain = valid_tiles_for_neighbor.copy()
             new_domain = len(nb.domain)
             if old_domain != new_domain:
                 #print("Adding", nb.x,nb.y, "to stack")
@@ -223,7 +212,10 @@ class Tile:
         
         self.pimg = img
         self.n = n
-        
+    
+    def getHash(self):
+        return hash(self.data)
+    
     def XYtoPImagePixelsIndex(self, x,y):
         return (x % self.pimg.width) + (y % self.pimg.height) * self.pimg.width
         
@@ -306,14 +298,22 @@ def initStateGrid():
         ]
 
 def extractAllTiles():
+    # ALL TILES: 2116 for FlowersBig before tile reduction
+    
+    present_hashes = []
     for y in range(IMG_HEIGHT):
         for x in range(IMG_WIDTH):
             T = Tile(x,y, IMG)
             T.extractColorData()
+            if T.getHash() in present_hashes: continue
+            else: present_hashes.append(T.getHash())
+            
             ALL_TILES.append(T)
     
 def extractTileAdjacencies():
     # For every tile, for all 4 directions, identify what tiles I am adjacent to
+    print("ALL TILES:", len(ALL_TILES))
+    
     for orig_tile in ALL_TILES:
         # Not checking neighbors, checking ALL tiles in the dataset
         for s in ["NORTH", "EAST", "SOUTH", "WEST"]:
@@ -322,7 +322,7 @@ def extractTileAdjacencies():
                     orig_tile.dir_adj[s].append(other_tile)
 
 def drawTile(x=None,y=None,tile=None):
-    if not x or not y:
+    if x == None or y == None:
         x = tile.img_x
         y = tile.img_y
     anchor_x = x * CELL_SIZE
@@ -332,9 +332,10 @@ def drawTile(x=None,y=None,tile=None):
         for y in range(N):
             colr = tile.getColorFromData(x, y)
             fill(colr)
-            #stroke(240)
-            rect(anchor_y + (y * mini_cell_size),
-                 anchor_x + (x * mini_cell_size), mini_cell_size, mini_cell_size)
+            stroke(140)
+            #no_stroke()
+            rect(anchor_x + (x * mini_cell_size),
+                 anchor_y + (y * mini_cell_size), mini_cell_size, mini_cell_size)
 
 def drawCell_whole(x=None,y=None,cell=None):
     # Draw a cell's single-item domain, which is just a tile
@@ -351,7 +352,8 @@ def drawCell_whole(x=None,y=None,cell=None):
             else:
                 colr = cell.domain[0].getColorFromData(x, y)
             fill(colr)
-            stroke(240)
+            stroke(190)
+            #no_stroke()
             rect(anchor_x + (x * mini_cell_size),
                  anchor_y + (y * mini_cell_size), mini_cell_size, mini_cell_size)
 
@@ -367,10 +369,11 @@ def drawCell_center(x=None,y=None,cell=None):
     if len(cell.domain) != 1:
         colr = ("#FFAAFFFF") # Some random color
     else:
-        colr = cell.domain[0].getColorFromData(N//2,N//2)
+        colr = cell.domain[0].getColorFromData(0,0)
         
     fill(colr)
     #stroke(240)
+    no_stroke()
     rect(anchor_x,
          anchor_y, CELL_SIZE, CELL_SIZE)
             
