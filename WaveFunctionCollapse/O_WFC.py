@@ -66,9 +66,16 @@ def setup():
         21:("Skyline2", 32,31),
         22:("Dungeon", 17,15),
         23:("Nested", 14,14),
-        24:("Platformer", 72,32)
+        24:("Platformer", 72,32),
+        25:("3Bricks", 32,32),
+        26:("Disk", 30,30),
+        27:("Cat", 18,16),
+        28:("Platformer", 72,32),
+        29:("Lake", 20,19),
+        30:("Knot", 17,17),
+        31:("BrownFox", 62,12)
     }
-    choice = 21
+    choice = 29
 
     WIDTH = imgs[choice][1]
     HEIGHT = imgs[choice][2]
