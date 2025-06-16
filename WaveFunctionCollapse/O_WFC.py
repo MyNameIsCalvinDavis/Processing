@@ -6,9 +6,9 @@ import random
 
 _NAMES = [x+y for x in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" for y in "1234567890"]
 
-OUTW = 100
-OUTH = 100
-CELL_SIZE = 5
+OUTW = 50
+OUTH = 50
+CELL_SIZE = 10
 N = 3
 NORTH = (0,-1)
 EAST = (1,0)
@@ -75,7 +75,7 @@ def setup():
         30:("Knot", 17,17),
         31:("BrownFox", 62,12)
     }
-    choice = 29
+    choice = 1
 
     WIDTH = imgs[choice][1]
     HEIGHT = imgs[choice][2]
@@ -104,7 +104,7 @@ def setup():
 
 def draw():
     background(240)
-    drawStateGrid()
+    
     #drawCellOutlines()
     '''
     for i,tile in enumerate(ALL_TILES):
@@ -121,43 +121,123 @@ def draw():
             #print("(", 1+idx, ",", i, ")")
         
     drawCellOutlines()
-    no_loop()
     '''
+    #print("WFC")
+    wfc()
     # Pick next cell based on entropy
-    next_cell = pickLowestEntropyCell()
-    next_cell.collapse()
-    updateAdjacentCellDomains(next_cell)
+    #drawStateGrid()
+    #next_cell = pickLowestEntropyCell()
+    #next_cell.collapse()
+    #updateAdjacentCellDomains(next_cell)
+    drawStateGrid()
+    #no_loop()
 
-    # Repeat
-    #'''
 
-def updateAdjacentCellDomains(cell):
+def wfc():
+    for cell in sum(STATE_GRID, []):
+        cell.calculateEntropy()
     
-    stack = [cell]
-    while stack:
-        mycell = stack.pop(0)
-        nbs = getNeighborCells(mycell) # ( (nb_cell, dirToNb_cell), ... )
+    m = 9999
+    smallest_entropy = []
+    for cell in sum(STATE_GRID, []):
+        if not cell.collapsed:
+            if cell.getEntropy() < m:
+                m = cell.getEntropy()
+                smallest_entropy = [cell]
+            elif cell.getEntropy() == m:
+                smallest_entropy.append(cell)
+    
+    if len(smallest_entropy) == 0:
+        no_loop()
+        return
+    
+    
+    next_cell = random.choice(smallest_entropy)
+    next_cell.collapsed = True
+    if len(next_cell.domain) == 0:
+        #raise
+        initStateGrid()
+        return
+
+    next_cell.domain = [random.choice(next_cell.domain)]
+    
+    
+    # Propagate to neighbors
+    #print("UACD:", next_cell.x,next_cell.y)
+    updateAdjacentCellDomains(next_cell)
+    
+    # Collapse len(domain) == 1 cells
+    for cell in sum(STATE_GRID, []):
+        if len(cell.domain) == 1:
+            cell.collapsed = True
+            updateAdjacentCellDomains(cell)
+
+def updateAdjacentCellDomains(mycell, rec_depth=8):
+    #print("##UACD:", mycell.x,mycell.y)
+    
+    if rec_depth <= 0 or mycell.checked:
+        return
+    mycell.checked = True
+    nbs = getNeighborCells(mycell)
+    
+    #print(mycell.x,mycell.y)
+    #print("##NBS:", len(nbs)) 
+    for nb, d in nbs:
+        limit(mycell, nb, d)
+        if len(mycell.domain) != len(nb.domain):
+           #print("RECURSE ON", nb.x,nb.y)
+           updateAdjacentCellDomains(nb, rec_depth - 1)
+           
         
-        for nb, d in nbs: # d is maincell -> nb direction
-            if (nb.x,nb.y) == (mycell.x,mycell.y): raise
-            valid_tiles_for_neighbor = []
-            for tile_n in nb.domain:
-                for tile_o in mycell.domain:
-                    if tile_n in tile_o.dir_adj[d]:
-                        valid_tiles_for_neighbor.append(tile_n)
-                        break
+def limit(mycell, nb, d):
+    if nb.collapsed: return
+    if len(nb.domain) == 0:
+        nb.collapsed = True
+        return
+    
+    valid_tiles_for_neighbor = []
+    for tile_o in mycell.domain:
+        valid_tiles_for_neighbor += tile_o.dir_adj[d]
+    
+    filtered_tiles_for_neighbor = []
+    for tile_n in nb.domain:
+        if tile_n in valid_tiles_for_neighbor:
+            filtered_tiles_for_neighbor.append(tile_n)
+    
+    
+    #print(len(nb.domain), len(filtered_tiles_for_neighbor))
+    if len(filtered_tiles_for_neighbor) < len(nb.domain):
+        nb.domain = filtered_tiles_for_neighbor
+    
+    '''
+    nbs = getNeighborCells(mycell) # ( (nb_cell, dirToNb_cell), ... )
+    for nb, d in nbs: # d is maincell -> nb direction
+        #if len(nb.domain) == 1: continue
+        if (nb.x,nb.y) == (mycell.x,mycell.y): raise
+        
+        valid_tiles_for_neighbor = []
+        for tile_n in nb.domain:
+            for tile_o in mycell.domain:
+                if tile_n in tile_o.dir_adj[d]:
+                    valid_tiles_for_neighbor.append(tile_n)
+                    break
+        
+        old_domain = len(nb.domain)
+        nb.domain = valid_tiles_for_neighbor.copy()
+        new_domain = len(nb.domain)
+        
+        if old_domain != new_domain:
+            #if nb not in touched:
+            touched.append(nb)
+            #if rec_depth > 0:
+                #print(mycell.x,mycell.y, "recurse on", nb.x,nb.y, len(nb.domain))
+            updateAdjacentCellDomains(nb, touched, rec_depth-1)
             
-            old_domain = len(nb.domain)
-            
-            nb.domain = valid_tiles_for_neighbor.copy()
-            new_domain = len(nb.domain)
-            if old_domain != new_domain:
-                #print("Adding", nb.x,nb.y, "to stack")
-                stack.append(nb)
-            
+    '''
             
 def drawStateGrid():
     for cell in sum(STATE_GRID, []):
+        cell.checked = False
         drawCell_center(cell=cell)
 
 class Cell:
@@ -168,12 +248,17 @@ class Cell:
         # We're just filling the list with unique tiles that may have the same overlap data
         self.domain = [tile for tile in ALL_TILES] # So glad Python is a reference-based language
         self.entropy = self.getEntropy()
+        self.checked = False
+        self.collapsed = False
         
         self.x = x
         self.y = y
         
     def getEntropy(self):
         return len(self.domain)
+    
+    def calculateEntropy(self):
+        return self.getEntropy()
     
     def collapse(self):
         # Choose a tile at random from the domain
@@ -373,9 +458,13 @@ def drawCell_center(x=None,y=None,cell=None):
     anchor_x = x * CELL_SIZE
     anchor_y = y * CELL_SIZE
     
-    if len(cell.domain) != 1:
+    if len(cell.domain) > 1:
         colr = ("#FFAAFFFF") # Some random color
+
+    elif len(cell.domain) == 0:
+        colr = ("#FF0000FF")
     else:
+        #print(cell.x,cell.y,len(cell.domain))
         colr = cell.domain[0].getColorFromData(0,0)
         
     fill(colr)
@@ -383,4 +472,10 @@ def drawCell_center(x=None,y=None,cell=None):
     no_stroke()
     rect(anchor_x,
          anchor_y, CELL_SIZE, CELL_SIZE)
-            
+    fill(255)
+    #print(cell.x,cell.y,len(cell.domain))
+    text(str(len(cell.domain)), anchor_x+10, anchor_y + 10)
+    
+    #if len(cell.domain) == 0:
+    #    no_loop()
+    #    return
