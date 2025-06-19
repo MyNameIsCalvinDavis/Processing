@@ -1,12 +1,13 @@
 import time
 from datetime import datetime
 import operator
+from copy import deepcopy
 import random
 
 
 _NAMES = [x+y for x in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" for y in "1234567890"]
 
-OUTW = 50
+OUTW = 100
 OUTH = 50
 CELL_SIZE = 10
 N = 3
@@ -23,7 +24,9 @@ IMG_WIDTH = None
 IMG_HEIGHT = None
 
 STATE_GRID = []
+STATE_LOG = []
 ALL_TILES = []
+ALL_TILES_HASH = {}
 
 def drawCellOutlines():
     for row in range(OUTH):
@@ -73,9 +76,10 @@ def setup():
         28:("Platformer", 72,32),
         29:("Lake", 20,19),
         30:("Knot", 17,17),
-        31:("BrownFox", 62,12)
+        31:("BrownFox", 62,12),
+        32:("LilGuy", 18.,16)
     }
-    choice = 1
+    choice = 27
 
     WIDTH = imgs[choice][1]
     HEIGHT = imgs[choice][2]
@@ -102,28 +106,41 @@ def setup():
     #print(ALL_TILES[0].isCompatible(ALL_TILES[9], "SOUTH"))
     #print(ALL_TILES[30].dir_adj)
 
+def backupStateGridDomains():
+    global STATE_LOG
+    domains = []
+    for cell in sum(STATE_GRID, []):
+        domains.append(cell.domain.copy())
+    STATE_LOG.append(domains)
+    if len(STATE_LOG) > 200: STATE_LOG = STATE_LOG[100:]
+    
+def restoreStateGridDomains(jump=1):
+    for i in range(jump):
+        STATE_LOG.pop()
+    restore = STATE_LOG[-1]
+    for cell,d in zip(sum(STATE_GRID, []), restore):
+        cell.domain = d.copy()
+        cell.getEntropy()
+        cell.collapsed = False
+        cell.checked = False
+
+jump = 16
+time = 1
 def draw():
+    global jump
+    global time
     background(240)
     
-    #drawCellOutlines()
-    '''
-    for i,tile in enumerate(ALL_TILES):
-        drawTile(0,i,tile=tile)
-        #text(str((0,i)), 0 * CELL_SIZE,i * CELL_SIZE)
-        #print(tile.data)
-        #print(0, i, end="")
-        #print(ALL_TILES[15].dir_adj)
-        #print(ALL_TILES[15].dir_adj["EAST"])
-        
-        for idx,t in enumerate(tile.dir_adj["SOUTH"]):
-            drawTile(1+idx,i,tile=t)
-            #text("H", CELL_SIZE+idx * CELL_SIZE,i * CELL_SIZE)
-            #print("(", 1+idx, ",", i, ")")
-        
-    drawCellOutlines()
-    '''
-    #print("WFC")
-    wfc()
+    time += 1
+    if jump == 16:
+        print("backup", time)
+        backupStateGridDomains()
+    if wfc() == 2:
+        print("restore")
+        restoreStateGridDomains(jump)
+        jump += 16
+    else:
+        jump = 16
     # Pick next cell based on entropy
     #drawStateGrid()
     #next_cell = pickLowestEntropyCell()
@@ -134,8 +151,8 @@ def draw():
 
 
 def wfc():
-    for cell in sum(STATE_GRID, []):
-        cell.calculateEntropy()
+    #for cell in sum(STATE_GRID, []):
+    #    cell.calculateEntropy()
     
     m = 9999
     smallest_entropy = []
@@ -154,36 +171,40 @@ def wfc():
     
     next_cell = random.choice(smallest_entropy)
     next_cell.collapsed = True
+    
     if len(next_cell.domain) == 0:
-        #raise
-        initStateGrid()
-        return
-
-    next_cell.domain = [random.choice(next_cell.domain)]
+        return 2
+    
+    probabilities = [ALL_TILES_HASH[x.getHash()] for x in next_cell.domain]
+    next_cell.domain = random.choices(next_cell.domain, probabilities)
     
     
     # Propagate to neighbors
     #print("UACD:", next_cell.x,next_cell.y)
-    updateAdjacentCellDomains(next_cell)
+    if updateAdjacentCellDomains(next_cell) == 2: return 2
     
     # Collapse len(domain) == 1 cells
     for cell in sum(STATE_GRID, []):
         if len(cell.domain) == 1:
             cell.collapsed = True
-            updateAdjacentCellDomains(cell)
+            
+            # if updateAdjacentCellDomains(cell) == 2: return 2
 
-def updateAdjacentCellDomains(mycell, rec_depth=8):
+def updateAdjacentCellDomains(mycell, rec_depth=16):
     #print("##UACD:", mycell.x,mycell.y)
     
     if rec_depth <= 0 or mycell.checked:
         return
+    if len(mycell.domain) == 0:
+        return 2
     mycell.checked = True
     nbs = getNeighborCells(mycell)
     
     #print(mycell.x,mycell.y)
     #print("##NBS:", len(nbs)) 
     for nb, d in nbs:
-        limit(mycell, nb, d)
+        if limit(mycell, nb, d) == 2: return 2
+        nb.entropy = nb.getEntropy()
         if len(mycell.domain) != len(nb.domain):
            #print("RECURSE ON", nb.x,nb.y)
            updateAdjacentCellDomains(nb, rec_depth - 1)
@@ -193,7 +214,8 @@ def limit(mycell, nb, d):
     if nb.collapsed: return
     if len(nb.domain) == 0:
         nb.collapsed = True
-        return
+    if len(mycell.domain) == 0:
+        return 2
     
     valid_tiles_for_neighbor = []
     for tile_o in mycell.domain:
@@ -206,34 +228,9 @@ def limit(mycell, nb, d):
     
     
     #print(len(nb.domain), len(filtered_tiles_for_neighbor))
+    if len(filtered_tiles_for_neighbor) == 0: return 2
     if len(filtered_tiles_for_neighbor) < len(nb.domain):
         nb.domain = filtered_tiles_for_neighbor
-    
-    '''
-    nbs = getNeighborCells(mycell) # ( (nb_cell, dirToNb_cell), ... )
-    for nb, d in nbs: # d is maincell -> nb direction
-        #if len(nb.domain) == 1: continue
-        if (nb.x,nb.y) == (mycell.x,mycell.y): raise
-        
-        valid_tiles_for_neighbor = []
-        for tile_n in nb.domain:
-            for tile_o in mycell.domain:
-                if tile_n in tile_o.dir_adj[d]:
-                    valid_tiles_for_neighbor.append(tile_n)
-                    break
-        
-        old_domain = len(nb.domain)
-        nb.domain = valid_tiles_for_neighbor.copy()
-        new_domain = len(nb.domain)
-        
-        if old_domain != new_domain:
-            #if nb not in touched:
-            touched.append(nb)
-            #if rec_depth > 0:
-                #print(mycell.x,mycell.y, "recurse on", nb.x,nb.y, len(nb.domain))
-            updateAdjacentCellDomains(nb, touched, rec_depth-1)
-            
-    '''
             
 def drawStateGrid():
     for cell in sum(STATE_GRID, []):
@@ -257,13 +254,12 @@ class Cell:
     def getEntropy(self):
         return len(self.domain)
     
-    def calculateEntropy(self):
-        return self.getEntropy()
-    
     def collapse(self):
         # Choose a tile at random from the domain
         if len(self.domain) == 1: return
-        self.domain = [random.choice(self.domain)]
+        
+        probabilities = [ALL_TILES_HASH[x.getHash()] for x in self.domain]
+        self.domain = random.choices(self.domain, probabilities)
         self.entropy = self.getEntropy()
     
 def getNeighborCells(cell):
@@ -397,10 +393,16 @@ def extractAllTiles():
         for x in range(IMG_WIDTH):
             T = Tile(x,y, IMG)
             T.extractColorData()
-            if T.getHash() in present_hashes: continue
-            else: present_hashes.append(T.getHash())
+            hsh = T.getHash()
+            #if T.getHash() in present_hashes: continue
+            #else: present_hashes.append(T.getHash())
             
-            ALL_TILES.append(T)
+            if hsh in ALL_TILES_HASH:
+                ALL_TILES_HASH[hsh] += 1
+            else:
+                ALL_TILES_HASH[hsh] = 1
+                ALL_TILES.append(T)
+            
     
 def extractTileAdjacencies():
     # For every tile, for all 4 directions, identify what tiles I am adjacent to
