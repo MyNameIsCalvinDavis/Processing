@@ -77,9 +77,10 @@ def setup():
         29:("Lake", 20,19),
         30:("Knot", 17,17),
         31:("BrownFox", 62,12),
-        32:("LilGuy", 18.,16)
+        32:("LilGuy", 18,16),
+        33:("Shadow", 40,40)
     }
-    choice = 27
+    choice = 33
 
     WIDTH = imgs[choice][1]
     HEIGHT = imgs[choice][2]
@@ -112,7 +113,7 @@ def backupStateGridDomains():
     for cell in sum(STATE_GRID, []):
         domains.append(cell.domain.copy())
     STATE_LOG.append(domains)
-    if len(STATE_LOG) > 200: STATE_LOG = STATE_LOG[100:]
+    #if len(STATE_LOG) > 10000: STATE_LOG = STATE_LOG[100:]
     
 def restoreStateGridDomains(jump=1):
     for i in range(jump):
@@ -123,6 +124,20 @@ def restoreStateGridDomains(jump=1):
         cell.getEntropy()
         cell.collapsed = False
         cell.checked = False
+
+def resetCells(x,y,radius=6):
+    cells = []
+    for row in range(x-radius, x+radius+1):
+        for col inrange(y-radius, y+radius+1):
+            c = getCell(x,y)
+            if c: cells.append(c)
+    
+    # Just the __init__ of Cell
+    for c in cells:
+        c.domain = [tile for tile in ALL_TILES] # So glad Python is a reference-based language
+        c.entropy = c.getEntropy()
+        c.checked = False
+        c.collapsed = False
 
 jump = 16
 time = 1
@@ -137,7 +152,7 @@ def draw():
         backupStateGridDomains()
     if wfc() == 2:
         print("restore")
-        restoreStateGridDomains(jump)
+        #restoreStateGridDomains(jump)
         jump += 16
     else:
         jump = 16
@@ -151,8 +166,8 @@ def draw():
 
 
 def wfc():
-    #for cell in sum(STATE_GRID, []):
-    #    cell.calculateEntropy()
+    for cell in sum(STATE_GRID, []):
+        cell.getEntropy()
     
     m = 9999
     smallest_entropy = []
@@ -185,10 +200,10 @@ def wfc():
     
     # Collapse len(domain) == 1 cells
     for cell in sum(STATE_GRID, []):
-        if len(cell.domain) == 1:
+        if len(cell.domain) == 1 and cell.collapsed == False:
             cell.collapsed = True
             
-            # if updateAdjacentCellDomains(cell) == 2: return 2
+            if updateAdjacentCellDomains(cell) == 2: return 2
 
 def updateAdjacentCellDomains(mycell, rec_depth=16):
     #print("##UACD:", mycell.x,mycell.y)
@@ -363,7 +378,10 @@ class Tile:
         return self.data[y][x]
 
 def getCell(x,y):
-    return STATE_GRID[y][x]
+    try:
+        return STATE_GRID[y][x]
+    except:
+        return
 
 def pickLowestEntropyCell():
     sorted_x = sorted(
