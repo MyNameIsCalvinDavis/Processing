@@ -7,9 +7,9 @@ import random
 
 _NAMES = [x+y for x in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" for y in "1234567890"]
 
-OUTW = 100
-OUTH = 50
-CELL_SIZE = 10
+OUTW = 200
+OUTH = 100
+CELL_SIZE = 5
 N = 3
 NORTH = (0,-1)
 EAST = (1,0)
@@ -125,11 +125,11 @@ def restoreStateGridDomains(jump=1):
         cell.collapsed = False
         cell.checked = False
 
-def resetCells(x,y,radius=6):
+def resetCells(x,y,radius=4):
     cells = []
     for row in range(x-radius, x+radius+1):
-        for col inrange(y-radius, y+radius+1):
-            c = getCell(x,y)
+        for col in range(y-radius, y+radius+1):
+            c = getCell(row,col)
             if c: cells.append(c)
     
     # Just the __init__ of Cell
@@ -138,31 +138,20 @@ def resetCells(x,y,radius=6):
         c.entropy = c.getEntropy()
         c.checked = False
         c.collapsed = False
+        c.outline = True
 
 jump = 16
-time = 1
 def draw():
     global jump
-    global time
     background(240)
     
-    time += 1
-    if jump == 16:
-        print("backup", time)
-        backupStateGridDomains()
-    if wfc() == 2:
+    a,b = wfc()
+    if a == 2:
         print("restore")
-        #restoreStateGridDomains(jump)
-        jump += 16
-    else:
-        jump = 16
-    # Pick next cell based on entropy
-    #drawStateGrid()
-    #next_cell = pickLowestEntropyCell()
-    #next_cell.collapse()
-    #updateAdjacentCellDomains(next_cell)
+        resetCells(b.x,b.y)
+
     drawStateGrid()
-    #no_loop()
+    
 
 
 def wfc():
@@ -181,14 +170,15 @@ def wfc():
     
     if len(smallest_entropy) == 0:
         no_loop()
-        return
+        return None,None
     
     
     next_cell = random.choice(smallest_entropy)
     next_cell.collapsed = True
     
     if len(next_cell.domain) == 0:
-        return 2
+        #resetCells(next_cell.x, next_cell.y)
+        return 2, next_cell
     
     probabilities = [ALL_TILES_HASH[x.getHash()] for x in next_cell.domain]
     next_cell.domain = random.choices(next_cell.domain, probabilities)
@@ -196,21 +186,23 @@ def wfc():
     
     # Propagate to neighbors
     #print("UACD:", next_cell.x,next_cell.y)
-    if updateAdjacentCellDomains(next_cell) == 2: return 2
+    if updateAdjacentCellDomains(next_cell) == 2: return 2, next_cell
     
     # Collapse len(domain) == 1 cells
     for cell in sum(STATE_GRID, []):
         if len(cell.domain) == 1 and cell.collapsed == False:
             cell.collapsed = True
             
-            if updateAdjacentCellDomains(cell) == 2: return 2
-
+            if updateAdjacentCellDomains(cell) == 2: return 2, cell
+    
+    return None,None
 def updateAdjacentCellDomains(mycell, rec_depth=16):
     #print("##UACD:", mycell.x,mycell.y)
     
     if rec_depth <= 0 or mycell.checked:
         return
     if len(mycell.domain) == 0:
+        #resetCells(mycell.x,mycell.y)
         return 2
     mycell.checked = True
     nbs = getNeighborCells(mycell)
@@ -230,6 +222,8 @@ def limit(mycell, nb, d):
     if len(nb.domain) == 0:
         nb.collapsed = True
     if len(mycell.domain) == 0:
+        print("RESET")
+        #resetCells(mycell.x,mycell.y)
         return 2
     
     valid_tiles_for_neighbor = []
@@ -262,6 +256,7 @@ class Cell:
         self.entropy = self.getEntropy()
         self.checked = False
         self.collapsed = False
+        self.outline = False
         
         self.x = x
         self.y = y
@@ -492,9 +487,16 @@ def drawCell_center(x=None,y=None,cell=None):
     no_stroke()
     rect(anchor_x,
          anchor_y, CELL_SIZE, CELL_SIZE)
-    fill(255)
+    #fill(255)
     #print(cell.x,cell.y,len(cell.domain))
-    text(str(len(cell.domain)), anchor_x+10, anchor_y + 10)
+    #text(str(len(cell.domain)), anchor_x+10, anchor_y + 10)
+    
+    if cell.outline:
+        cell.outline = False
+        stroke(255,0,0)
+        no_fill()
+        rect(anchor_x,
+        anchor_y, CELL_SIZE, CELL_SIZE)
     
     #if len(cell.domain) == 0:
     #    no_loop()
