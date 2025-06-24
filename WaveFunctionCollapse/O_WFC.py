@@ -10,7 +10,7 @@ _NAMES = [x+y for x in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" for y in "1234567890"]
 OUTW = 200
 OUTH = 100
 CELL_SIZE = 5
-N = 3
+N = 5
 NORTH = (0,-1)
 EAST = (1,0)
 SOUTH = (0,1)
@@ -78,9 +78,10 @@ def setup():
         30:("Knot", 17,17),
         31:("BrownFox", 62,12),
         32:("LilGuy", 18,16),
-        33:("Shadow", 40,40)
+        33:("Shadow", 40,40),
+        34:("SmallCircle",30,30)
     }
-    choice = 33
+    choice = 7
 
     WIDTH = imgs[choice][1]
     HEIGHT = imgs[choice][2]
@@ -138,18 +139,42 @@ def resetCells(x,y,radius=4):
         c.entropy = c.getEntropy()
         c.checked = False
         c.collapsed = False
-        c.outline = True
+        c.outline = (True, (255,0,0))
+    
+    # Update cell adjacency of the perimeter of the square
+    edge_cells = []
+    # Top
+    edge_cells += [getCell(x,y-radius-1) for x in range(x-radius-1, x+radius+2)]
+    # Bottom
+    edge_cells += [getCell(x,y+radius+1) for x in range(x-radius-1, x+radius+2)]
+    # Left
+    edge_cells += [getCell(x-radius-1,y) for y in range(y-radius-1, y+radius+2)]
+    # Right
+    edge_cells += [getCell(x+radius+1,y) for y in range(y-radius-1, y+radius+2)]
+    for c in edge_cells:
+        if not c: continue
+        c.outline = (True, (0,0,255))
+        #if updateAdjacentCellDomains(c) == 2: return 2
+        updateAdjacentCellDomains(c)
+
+
 
 jump = 16
+time = 1
 def draw():
     global jump
+    global time
     background(240)
     
     a,b = wfc()
     if a == 2:
         print("restore")
+        #restoreStateGridDomains(jump)
+        #jump += 16
         resetCells(b.x,b.y)
-
+    #else:
+        #jump = 16
+        #backupStateGridDomains()
     drawStateGrid()
     
 
@@ -196,7 +221,7 @@ def wfc():
             if updateAdjacentCellDomains(cell) == 2: return 2, cell
     
     return None,None
-def updateAdjacentCellDomains(mycell, rec_depth=16):
+def updateAdjacentCellDomains(mycell, rec_depth=32):
     #print("##UACD:", mycell.x,mycell.y)
     
     if rec_depth <= 0 or mycell.checked:
@@ -492,8 +517,9 @@ def drawCell_center(x=None,y=None,cell=None):
     #text(str(len(cell.domain)), anchor_x+10, anchor_y + 10)
     
     if cell.outline:
+        
+        stroke(*cell.outline[1])
         cell.outline = False
-        stroke(255,0,0)
         no_fill()
         rect(anchor_x,
         anchor_y, CELL_SIZE, CELL_SIZE)
