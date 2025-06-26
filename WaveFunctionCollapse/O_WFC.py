@@ -79,9 +79,10 @@ def setup():
         31:("BrownFox", 62,12),
         32:("LilGuy", 18,16),
         33:("Shadow", 40,40),
-        34:("SmallCircle",30,30)
+        34:("SmallCircle",30,30),
+        35:("Flowers",15,24)
     }
-    choice = 7
+    choice = 27
 
     WIDTH = imgs[choice][1]
     HEIGHT = imgs[choice][2]
@@ -159,22 +160,24 @@ def resetCells(x,y,radius=4):
 
 
 
-jump = 16
-time = 1
+jump = 1
+time_m = 1
 def draw():
     global jump
-    global time
+    global time_m
+    time_m += 1
     background(240)
     
     a,b = wfc()
     if a == 2:
         print("restore")
         #restoreStateGridDomains(jump)
-        #jump += 16
+        jump += 1
         resetCells(b.x,b.y)
     #else:
-        #jump = 16
-        #backupStateGridDomains()
+        #jump = 1
+        #if time_m % 10 == 0: # Backup every 5th frame
+        #    backupStateGridDomains()
     drawStateGrid()
     
 
@@ -212,6 +215,7 @@ def wfc():
     # Propagate to neighbors
     #print("UACD:", next_cell.x,next_cell.y)
     if updateAdjacentCellDomains(next_cell) == 2: return 2, next_cell
+    # reduceEntropy(c, 0)
     
     # Collapse len(domain) == 1 cells
     for cell in sum(STATE_GRID, []):
@@ -219,9 +223,10 @@ def wfc():
             cell.collapsed = True
             
             if updateAdjacentCellDomains(cell) == 2: return 2, cell
+            #reduceEntropy(c, 0)
     
     return None,None
-def updateAdjacentCellDomains(mycell, rec_depth=32):
+def updateAdjacentCellDomains(mycell, rec_depth=16):
     #print("##UACD:", mycell.x,mycell.y)
     
     if rec_depth <= 0 or mycell.checked:
@@ -235,20 +240,24 @@ def updateAdjacentCellDomains(mycell, rec_depth=32):
     #print(mycell.x,mycell.y)
     #print("##NBS:", len(nbs)) 
     for nb, d in nbs:
-        if limit(mycell, nb, d) == 2: return 2
+        r = limit(mycell, nb, d)
+        if r == 2: return 2
         nb.entropy = nb.getEntropy()
+        #if r != None:
+            
+        
         if len(mycell.domain) != len(nb.domain):
            #print("RECURSE ON", nb.x,nb.y)
-           updateAdjacentCellDomains(nb, rec_depth - 1)
+           if updateAdjacentCellDomains(nb, rec_depth - 1) == 2: return 2
            
         
 def limit(mycell, nb, d):
     if nb.collapsed: return
+    if not nb: return
+    
     if len(nb.domain) == 0:
         nb.collapsed = True
     if len(mycell.domain) == 0:
-        print("RESET")
-        #resetCells(mycell.x,mycell.y)
         return 2
     
     valid_tiles_for_neighbor = []
@@ -265,6 +274,8 @@ def limit(mycell, nb, d):
     if len(filtered_tiles_for_neighbor) == 0: return 2
     if len(filtered_tiles_for_neighbor) < len(nb.domain):
         nb.domain = filtered_tiles_for_neighbor
+    
+    return True
             
 def drawStateGrid():
     for cell in sum(STATE_GRID, []):
@@ -432,8 +443,6 @@ def extractAllTiles():
             T = Tile(x,y, IMG)
             T.extractColorData()
             hsh = T.getHash()
-            #if T.getHash() in present_hashes: continue
-            #else: present_hashes.append(T.getHash())
             
             if hsh in ALL_TILES_HASH:
                 ALL_TILES_HASH[hsh] += 1
@@ -523,6 +532,7 @@ def drawCell_center(x=None,y=None,cell=None):
         no_fill()
         rect(anchor_x,
         anchor_y, CELL_SIZE, CELL_SIZE)
+        #no_loop()
     
     #if len(cell.domain) == 0:
     #    no_loop()
